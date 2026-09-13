@@ -1,0 +1,2 @@
+# GHANAREALMS-
+GhanaRealms Minecraft Network
