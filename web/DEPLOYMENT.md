@@ -1,5 +1,35 @@
 # Deployment
 
+## Option A: Cloudflare Workers (via OpenNext) - Git-integrated, non-interactive
+
+See [CLOUDFLARE_FIX.md](./CLOUDFLARE_FIX.md) for the `pg-cloudflare` bundling
+issue that was fixed to make this work, and exactly what was verified.
+
+1. In the Cloudflare dashboard: Workers & Pages -> Create -> connect this
+   GitHub repo (Git integration, not manual upload - satisfies requirement
+   #10's "suitable for Cloudflare's Git-connected deployment environment").
+2. Build command: `npm run cf:build` (runs `opennextjs-cloudflare build`)
+3. Deploy command: leave Cloudflare's default (it picks up `.open-next/`
+   and `wrangler.jsonc` automatically), or `npm run cf:deploy` if driving
+   it from a CI script instead of Cloudflare's own Git integration.
+4. Set every variable listed in CLOUDFLARE_FIX.md's "Cloudflare environment
+   variables/secrets" section as an **encrypted secret** in the Workers
+   project's Settings -> Variables - not a plain environment variable.
+5. Database: this deployment still needs a real PostgreSQL instance
+   reachable from Cloudflare's network. Options: a VPS-hosted Postgres
+   with a public (firewalled to Cloudflare IPs) endpoint, or a managed
+   Postgres provider. **Cloudflare Hyperdrive** is worth evaluating as a
+   connection-pooling proxy in front of it, though this fix did not
+   require Hyperdrive to work - straight `DATABASE_URL` already succeeded
+   in local Workers-runtime testing (see CLOUDFLARE_FIX.md's verification
+   table).
+6. First deploy: watch Cloudflare's build log for the exact same
+   `pg-cloudflare` error if you see it - if so, confirm `next.config.ts`
+   and `package.json`'s `pg-cloudflare` dependency actually made it into
+   the deployed commit.
+
+## Option B: Traditional VPS (Node.js, not Cloudflare Workers)
+
 ## Architecture (per the brief's section 36)
 ```
 Reverse Proxy (nginx/Caddy, terminates TLS)

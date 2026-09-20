@@ -75,6 +75,21 @@
 ## Paystack status
 Not connected to a real Paystack account. Code is written against documented API behavior (initialize, verify, webhook signature scheme) but has zero real-world verification. **Do not treat this as working until you've personally run a real test-mode transaction through it.**
 
+## Cloudflare Workers deployment status (new)
+**Fixed and verified.** The `pg-cloudflare` bundling error reported is
+resolved - root cause, fix, and full verification log in
+[CLOUDFLARE_FIX.md](./CLOUDFLARE_FIX.md). Summary: `next build` passes
+(20/20 static pages), `opennextjs-cloudflare build` passes (previously
+failed with `Could not resolve "pg-cloudflare"`), and the real Workers
+runtime (via `wrangler dev`/workerd) was confirmed to actually run a real
+PostgreSQL query and render real data - not just that the build didn't
+error. One **separate, narrower** issue was found during this
+verification pass (not the reported bug): `/api/admin/login` hangs in
+the Workers runtime specifically when a DB query and `bcrypt.compare()`
+run in the same request, though neither library hangs in isolation. Not
+fixed - flagged as a known issue in CLOUDFLARE_FIX.md rather than
+silently left for someone to discover in production.
+
 ## Database status
 Real, tested, running locally in the build environment against PostgreSQL 16.15. Schema is solid. Not deployed anywhere permanent.
 
