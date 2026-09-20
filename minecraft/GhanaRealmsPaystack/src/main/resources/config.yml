@@ -19,9 +19,23 @@ WEBHOOK:
   # A lightweight built-in HTTP server (JDK's com.sun.net.httpserver - no extra
   # dependency) that listens for Paystack's webhook POST on this port/path.
   # Your firewall/reverse proxy must forward external traffic to this port.
+  # This serves the in-game /buy command's OWN purchases - it is separate
+  # from BRIDGE below, which delivers purchases made through the website.
   ENABLED: true
   PORT: 8085
   PATH: '/ghanarealms/paystack/webhook'
+
+BRIDGE:
+  # If you've also deployed the GhanaRealms web store (see /web in the repo),
+  # this plugin can ALSO poll it for purchases made through the website and
+  # deliver them in-game - the two purchase paths (in-game /buy and the
+  # website) are independent and both funnel into the same delivery logic.
+  # Leave STORE-BASE-URL blank/REPLACE_ME to disable this - the plugin
+  # works fine with only the in-game /buy flow if you don't want a website.
+  ENABLED: false
+  STORE-BASE-URL: 'https://your-store-domain.example'
+  BRIDGE-SECRET: 'REPLACE_ME_MUST_MATCH_MINECRAFT_BRIDGE_SECRET_IN_WEB_ENV'
+  POLL-INTERVAL-SECONDS: 30
 
 PACKAGES:
   STARTER:

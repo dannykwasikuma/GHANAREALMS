@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GhanaRealms Store
 
-## Getting Started
+The official GhanaRealms web store - Next.js + PostgreSQL + Paystack,
+delivering purchases into the GhanaRealms Minecraft server.
 
-First, run the development server:
+**Start here:** [STATUS.md](./STATUS.md) - an honest account of what's
+built, what's actually been tested (not just written), and what isn't
+done yet.
 
+## Quick links
+- [DEPLOYMENT.md](./DEPLOYMENT.md) - how to actually deploy this
+- [PAYSTACK_SETUP.md](./PAYSTACK_SETUP.md) - getting and configuring Paystack keys
+- [MINECRAFT_BRIDGE.md](./MINECRAFT_BRIDGE.md) - how purchases reach the game
+- [SECURITY.md](./SECURITY.md) - what's implemented, what isn't
+- [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) - common issues
+- [STORE_PRODUCTS.md](./STORE_PRODUCTS.md) - how to add real products
+
+## Local development
 ```bash
+npm install
+cp .env.example .env.local   # fill in real values
+psql $DATABASE_URL -f migrations/001_init.sql
+psql $DATABASE_URL -f migrations/002_seed_example_products.sql  # optional test data
+node scripts/create-admin.js youradmin YourSecurePassword123
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Tech stack
+Next.js 16 (App Router, TypeScript), Tailwind CSS 4, PostgreSQL (via `pg`,
+no ORM), Paystack REST API directly (no SDK dependency, same reasoning as
+the Minecraft plugins' own Paystack client), bcrypt + JWT for admin auth.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Design
+Ghana flag palette (red/gold/green/black) used as the actual design
+language throughout - see `app/globals.css` - not decoration layered on
+top of a generic template, per the project brief's requirement.

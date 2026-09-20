@@ -39,6 +39,8 @@ public class GhanaRealmsPaystack extends JavaPlugin {
             webhookServer.start(getConfig().getInt("WEBHOOK.PORT", 8085), getConfig().getString("WEBHOOK.PATH", "/ghanarealms/paystack/webhook"));
         }
 
+        setupBridge();
+
         getCommand("buy").setExecutor(new BuyCommand(this));
         getCommand("paystack").setExecutor(new PaystackAdminCommand(this));
 
@@ -63,6 +65,26 @@ public class GhanaRealmsPaystack extends JavaPlugin {
         } else {
             getLogger().warning("Vault is present but no economy plugin is registered with it yet.");
         }
+    }
+
+    private BridgeClient bridgeClient;
+
+    private void setupBridge() {
+        if (!getConfig().getBoolean("BRIDGE.ENABLED", false)) return;
+
+        bridgeClient = new BridgeClient(
+                this, economy,
+                getConfig().getString("BRIDGE.STORE-BASE-URL", ""),
+                getConfig().getString("BRIDGE.BRIDGE-SECRET", "")
+        );
+        if (!bridgeClient.isConfigured()) {
+            getLogger().warning("BRIDGE.ENABLED is true but STORE-BASE-URL/BRIDGE-SECRET are not set - website purchase delivery is disabled.");
+            return;
+        }
+
+        int intervalTicks = getConfig().getInt("BRIDGE.POLL-INTERVAL-SECONDS", 30) * 20;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> bridgeClient.pollAndDeliver(), 100L, intervalTicks);
+        getLogger().info("Web store bridge enabled - polling every " + getConfig().getInt("BRIDGE.POLL-INTERVAL-SECONDS", 30) + "s.");
     }
 
     public PurchaseStore getStore() {
