@@ -1,0 +1,582 @@
+package com.bx.ultimateDonutSmp.menus;
+
+import com.bx.ultimateDonutSmp.UltimateDonutSmp;
+import com.bx.ultimateDonutSmp.models.Home;
+import com.bx.ultimateDonutSmp.models.Team;
+import com.bx.ultimateDonutSmp.utils.ColorUtils;
+import com.bx.ultimateDonutSmp.utils.ItemUtils;
+import com.bx.ultimateDonutSmp.utils.PermissionUtils;
+import com.bx.ultimateDonutSmp.utils.SoundUtils;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class HomeMenu extends BaseMenu {
+
+    private static final int HOMES_PER_PAGE = 5;
+
+    private static final int PREV_PAGE_SLOT = 0;
+    private static final int NEXT_PAGE_SLOT = 8;
+
+    private static final int TEAM_TELEPORT_SLOT = 10;
+    private static final int TEAM_ACTION_SLOT = 19;
+
+    private static final int[] HOME_TELEPORT_SLOTS = {12, 13, 14, 15, 16};
+    private static final int[] HOME_ACTION_SLOTS = {21, 22, 23, 24, 25};
+
+    private final Map<Integer, SlotAction> slotActions = new HashMap<>();
+
+    private int page = 0;
+
+    public HomeMenu(UltimateDonutSmp plugin) {
+        this(plugin, 0);
+    }
+
+    /** The delete confirmation reopens the menu through this, on the page the player left. */
+    public HomeMenu(UltimateDonutSmp plugin, int page) {
+        super(plugin, configuredTitle(plugin), configuredSize(plugin));
+        this.page = Math.max(0, page);
+    }
+
+    @Override
+    public void build(Player player) {
+        clear();
+        slotActions.clear();
+
+        fillWithFiller();
+
+        List<Home> homes = new ArrayList<>(plugin.getHomeManager().getHomes(player.getUniqueId()));
+        homes.sort(Comparator.comparingLong(Home::getCreatedAt));
+
+        Map<Integer, Home> slotToHome = resolveHomeSlots(homes);
+
+        int maxHomes = plugin.getHomeManager().getMaxHomes(player);
+        int highestSlot = maxHomes - 1;
+        for (int slot : slotToHome.keySet()) {
+            highestSlot = Math.max(highestSlot, slot);
+        }
+        int totalPages = Math.max(1, (int) Math.ceil((highestSlot + 1) / (double) HOMES_PER_PAGE));
+        page = clampPage(page, totalPages);
+
+        buildPageButtons(totalPages);
+        buildTeamButtons(player);
+        buildHomeButtons(player, slotToHome, maxHomes);
+    }
+
+    @Override
+    public void handleClick(int slot, Player player, ClickType clickType) {
+        SlotAction action = slotActions.get(slot);
+        if (action == null) return;
+
+        SoundUtils.play(player, plugin.getConfigManager().getSound("MENUS.BUTTON-CLICK"));
+        action.execute(player, clickType);
+    }
+
+    private void buildPageButtons(int totalPages) {
+        if (page > 0) {
+            set(PREV_PAGE_SLOT, ItemUtils.createItem(
+                    Material.ARROW,
+                    "&fPrevious page",
+                    List.of("&7Go to page &f" + page, "&7Current page: &f" + (page + 1) + "/" + totalPages)
+            ));
+            slotActions.put(PREV_PAGE_SLOT, (p, click) -> {
+                page--;
+                build(p);
+            });
+        }
+
+        if (page < totalPages - 1) {
+            set(NEXT_PAGE_SLOT, ItemUtils.createItem(
+                    Material.ARROW,
+                    "&fNext page",
+                    List.of("&7Go to page &f" + (page + 2), "&7Current page: &f" + (page + 1) + "/" + totalPages)
+            ));
+            slotActions.put(NEXT_PAGE_SLOT, (p, click) -> {
+                page++;
+                build(p);
+            });
+        }
+    }
+
+    private void buildTeamButtons(Player player) {
+        Team team = plugin.getTeamManager().getTeam(player);
+        boolean canEditTeamHome = canEditTeamHome(player, team);
+        boolean canVisitTeamHome = canVisitTeamHome(player, team);
+
+        String teleportState = team == null ? "NO_TEAM" : (team.hasHome() ? "HAS_HOME" : "NO_HOME");
+        Map<String, String> teleportPlaceholders = new HashMap<>();
+        teleportPlaceholders.put("world", team != null && team.hasHome() ? friendlyWorldName(team.getHome()) : "overworld");
+
+        set(TEAM_TELEPORT_SLOT, ItemUtils.createItem(
+                material("HOME-MENU.TEAM_HOME.TELEPORT.MATERIALS." + teleportState, Material.WHITE_BANNER),
+                text("HOME-MENU.TEAM_HOME.TELEPORT.DISPLAY_NAME." + teleportState, "&fTeam home", teleportPlaceholders),
+                lore("HOME-MENU.TEAM_HOME.TELEPORT.LORE." + teleportState,
+                        defaultTeamTeleportLore(team, teleportState), teleportPlaceholders)
+        ));
+
+        if (team != null && team.hasHome() && canVisitTeamHome) {
+            slotActions.put(TEAM_TELEPORT_SLOT, (p, click) -> {
+                p.closeInventory();
+                plugin.getTeleportManager().queue(p, team.getHome(), "TEAM-HOME", null);
+            });
+        } else if (team != null && !team.hasHome() && canEditTeamHome) {
+            slotActions.put(TEAM_TELEPORT_SLOT, (p, click) -> setTeamHome(p, team));
+        }
+
+        String actionState = team == null ? "NO_TEAM" : (team.hasHome() ? "HAS_HOME" : "NO_HOME");
+        List<String> actionLore = lore(
+                "HOME-MENU.TEAM_HOME.SAVE.LORE." + actionState,
+                defaultTeamActionLore(team, actionState),
+                teleportPlaceholders
+        );
+        if (team != null && !canEditTeamHome) {
+            actionLore = new ArrayList<>(actionLore);
+            actionLore.add("&cYou cannot edit the team home.");
+        }
+        if (team != null && team.hasHome() && !canVisitTeamHome) {
+            actionLore = new ArrayList<>(actionLore);
+            actionLore.add("&cYou cannot visit the team home.");
+        }
+
+        set(TEAM_ACTION_SLOT, ItemUtils.createItem(
+                material("HOME-MENU.TEAM_HOME.SAVE.MATERIALS." + actionState, Material.GRAY_DYE),
+                text("HOME-MENU.TEAM_HOME.SAVE.DISPLAY_NAME." + actionState, "&7Manage team home", teleportPlaceholders),
+                actionLore
+        ));
+
+        if (team == null || !canEditTeamHome) return;
+
+        if (team.hasHome()) {
+            slotActions.put(TEAM_ACTION_SLOT, (p, click) -> {
+                if (click.isRightClick()) {
+                    confirmTeamHomeDelete(p, team);
+                } else if (isBedrock(p)) {
+                    plugin.getHomeBedrockManager().openTeamHomeOptions(p);
+                } else {
+                    setTeamHome(p, team);
+                }
+            });
+            return;
+        }
+
+        slotActions.put(TEAM_ACTION_SLOT, (p, click) -> setTeamHome(p, team));
+    }
+
+    private void buildHomeButtons(Player player, Map<Integer, Home> slotToHome, int maxHomes) {
+        int startIndex = page * HOMES_PER_PAGE;
+
+        for (int i = 0; i < HOMES_PER_PAGE; i++) {
+            int globalIndex = startIndex + i;
+            int teleportSlot = HOME_TELEPORT_SLOTS[i];
+            int actionSlot = HOME_ACTION_SLOTS[i];
+            String key = "HOME-" + (i + 1);
+
+            Home home = slotToHome.get(globalIndex);
+            if (home != null) {
+                setUsedHomeButtons(player, home, key, globalIndex, teleportSlot, actionSlot);
+                continue;
+            }
+
+            if (globalIndex < maxHomes) {
+                setAvailableHomeButtons(player, key, globalIndex, teleportSlot, actionSlot);
+            } else {
+                setLockedHomeButtons(key, globalIndex, teleportSlot, actionSlot);
+            }
+        }
+    }
+
+    private void setUsedHomeButtons(Player player, Home home, String key, int globalIndex, int teleportSlot, int actionSlot) {
+        Map<String, String> placeholders = homePlaceholders(home.getName(), globalIndex, home.getLocation());
+
+        set(teleportSlot, ItemUtils.createItem(
+                material("HOME-MENU.TELEPORT-USED-MATERIAL", Material.LIGHT_BLUE_BED),
+                text("HOME-MENU.TELEPORT." + key + ".DISPLAY-NAME.USED", "&b{name}", placeholders),
+                lore("HOME-MENU.TELEPORT." + key + ".LORE.USED",
+                        List.of("&7World: &f{world}", "&aLeft-click to teleport"),
+                        placeholders)
+        ));
+        slotActions.put(teleportSlot, (p, click) -> {
+            p.closeInventory();
+            plugin.getTeleportManager().queue(p, home.getLocation(), "HOME", null);
+        });
+
+        set(actionSlot, ItemUtils.createItem(
+                material("HOME-MENU.CREATE-USED-MATERIAL", Material.BLUE_DYE),
+                text("HOME-MENU.CREATE." + key + ".DISPLAY-NAME.USED", "&b{name}", placeholders),
+                lore("HOME-MENU.CREATE." + key + ".LORE.USED",
+                        List.of("&eLeft-click to rename this home", "&cRight-click to delete"),
+                        placeholders)
+        ));
+        slotActions.put(actionSlot, (p, click) -> {
+            if (click.isRightClick()) {
+                confirmHomeDelete(p, home);
+            } else if (isBedrock(p)) {
+                plugin.getHomeBedrockManager().openHomeOptions(p, home);
+            } else {
+                new HomeActionMenu(plugin, home).open(p);
+            }
+        });
+    }
+
+    private void setAvailableHomeButtons(Player player, String key, int globalIndex, int teleportSlot, int actionSlot) {
+        String suggestedName = defaultAvailableHomeName(player, globalIndex);
+        Map<String, String> placeholders = emptyHomePlaceholders(globalIndex);
+
+        set(teleportSlot, ItemUtils.createItem(
+                material("HOME-MENU.TELEPORT-NO-USED-MATERIAL", Material.LIGHT_GRAY_BED),
+                text("HOME-MENU.TELEPORT." + key + ".DISPLAY-NAME.NO-USED", "&7{slot}", placeholders),
+                lore("HOME-MENU.TELEPORT." + key + ".LORE.NO-USED",
+                        List.of("&7Click to create a home."), placeholders)
+        ));
+        set(actionSlot, ItemUtils.createItem(
+                material("HOME-MENU.CREATE-NO-USED-MATERIAL", Material.GRAY_DYE),
+                text("HOME-MENU.CREATE." + key + ".DISPLAY-NAME.NO-USED", "&7{slot}", placeholders),
+                lore("HOME-MENU.CREATE." + key + ".LORE.NO-USED",
+                        List.of("&7Click to name and create a home."), placeholders)
+        ));
+
+        slotActions.put(teleportSlot, (p, click) -> {
+            if (plugin.getDuelManager() != null && (plugin.getDuelManager().isInDuel(p.getUniqueId())
+                    || plugin.getDuelManager().isTransitioning(p.getUniqueId())
+                    || plugin.getDuelManager().isLocationInDuelArena(p.getLocation()))) {
+                p.sendMessage(ColorUtils.toComponent("&cYou cannot set a home inside a duel arena or duel world."));
+                return;
+            }
+            if (plugin.getFfaManager() != null && (plugin.getFfaManager().isInSession(p.getUniqueId())
+                    || plugin.getFfaManager().isInFfaLocation(p.getLocation()))) {
+                p.sendMessage(ColorUtils.toComponent("&cYou cannot set a home inside an FFA arena."));
+                return;
+            }
+            if (plugin.getHomeManager() != null && plugin.getHomeManager().isWorldExcluded(p.getWorld())
+                    && !PermissionUtils.has(p, "ultimatedonutsmp.homes.bypass")) {
+                p.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("HOME.EXCLUDED-WORLD")));
+                return;
+            }
+            if (plugin.getHomeManager().setHome(p, suggestedName)) {
+                p.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("HOME.SET")));
+                new HomeMenu(plugin, page).open(p);
+            } else {
+                p.sendMessage(ColorUtils.toComponent("&cYou cannot create another home right now."));
+            }
+        });
+        slotActions.put(actionSlot, (p, click) -> {
+            if (plugin.getDuelManager() != null && (plugin.getDuelManager().isInDuel(p.getUniqueId())
+                    || plugin.getDuelManager().isTransitioning(p.getUniqueId())
+                    || plugin.getDuelManager().isLocationInDuelArena(p.getLocation()))) {
+                p.sendMessage(ColorUtils.toComponent("&cYou cannot set a home inside a duel arena or duel world."));
+                return;
+            }
+            if (plugin.getFfaManager() != null && (plugin.getFfaManager().isInSession(p.getUniqueId())
+                    || plugin.getFfaManager().isInFfaLocation(p.getLocation()))) {
+                p.sendMessage(ColorUtils.toComponent("&cYou cannot set a home inside an FFA arena."));
+                return;
+            }
+            if (plugin.getHomeManager() != null && plugin.getHomeManager().isWorldExcluded(p.getWorld())
+                    && !PermissionUtils.has(p, "ultimatedonutsmp.homes.bypass")) {
+                p.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("HOME.EXCLUDED-WORLD")));
+                return;
+            }
+            plugin.getHomeManager().promptCreateHome(p, p.getLocation(), suggestedName);
+        });
+    }
+
+    private void setLockedHomeButtons(String key, int globalIndex, int teleportSlot, int actionSlot) {
+        Map<String, String> placeholders = emptyHomePlaceholders(globalIndex);
+
+        set(teleportSlot, ItemUtils.createItem(
+                material("HOME-MENU.TELEPORT-NO-PERMISSION-MATERIAL", Material.RED_BED),
+                text("HOME-MENU.TELEPORT." + key + ".DISPLAY-NAME.NO-PERMISSION", "&cLocked", placeholders),
+                lore("HOME-MENU.TELEPORT." + key + ".LORE.NO-PERMISSION",
+                        List.of("&7You need a higher rank for this home."), placeholders)
+        ));
+        set(actionSlot, ItemUtils.createItem(
+                material("HOME-MENU.CREATE-NO-PERMISSION-MATERIAL", Material.RED_DYE),
+                text("HOME-MENU.CREATE." + key + ".DISPLAY-NAME.NO-PERMISSION", "&cLocked", placeholders),
+                lore("HOME-MENU.CREATE." + key + ".LORE.NO-PERMISSION",
+                        List.of("&7You need a higher rank for this home."), placeholders)
+        ));
+    }
+
+    /**
+     * Right-clicking a home button destroys it, so it asks first instead of acting on a misclick.
+     * Bedrock players get the Floodgate form, which already confirms.
+     */
+    private void confirmHomeDelete(Player player, Home home) {
+        if (isBedrock(player)) {
+            plugin.getHomeBedrockManager().openDeleteConfirmation(player, home);
+            return;
+        }
+
+        new HomeDeleteConfirmMenu(plugin, home, page).open(player);
+    }
+
+    private void confirmTeamHomeDelete(Player player, Team team) {
+        if (isBedrock(player)) {
+            plugin.getHomeBedrockManager().openDeleteTeamHomeConfirmation(player, team);
+            return;
+        }
+
+        HomeDeleteConfirmMenu.forTeamHome(plugin, page, target -> deleteTeamHome(target, team)).open(player);
+    }
+
+    private boolean isBedrock(Player player) {
+        return plugin.getHomeBedrockManager() != null && plugin.getHomeBedrockManager().isBedrockPlayer(player);
+    }
+
+    private void setTeamHome(Player player, Team team) {
+        if (!canEditTeamHome(player, team)) {
+            player.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("TEAM.NO-EDIT-HOME-PERMISSION")));
+            return;
+        }
+        if (plugin.getDuelManager() != null && (plugin.getDuelManager().isInDuel(player.getUniqueId())
+                || plugin.getDuelManager().isTransitioning(player.getUniqueId())
+                || plugin.getDuelManager().isLocationInDuelArena(player.getLocation()))) {
+            player.sendMessage(ColorUtils.toComponent("&cYou cannot set a team home inside a duel arena or duel world."));
+            return;
+        }
+        if (plugin.getFfaManager() != null && (plugin.getFfaManager().isInSession(player.getUniqueId())
+                || plugin.getFfaManager().isInFfaLocation(player.getLocation()))) {
+            player.sendMessage(ColorUtils.toComponent("&cYou cannot set a team home inside an FFA arena."));
+            return;
+        }
+        if (plugin.getTeamManager().isWorldExcluded(player.getWorld())
+                && !PermissionUtils.has(player, "ultimatedonutsmp.teams.bypass")
+                && !PermissionUtils.has(player, "ultimatedonutsmp.homes.bypass")) {
+            player.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("TEAM.EXCLUDED-WORLD")));
+            return;
+        }
+
+        team.setHome(player.getLocation());
+        plugin.getTeamManager().save(team);
+        player.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("TEAM.TEAM-HOME-SET")));
+        build(player);
+    }
+
+    private void deleteTeamHome(Player player, Team team) {
+        if (!canEditTeamHome(player, team)) {
+            player.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("TEAM.NO-EDIT-HOME-PERMISSION")));
+            return;
+        }
+        if (!team.hasHome()) {
+            player.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("TEAM.NO-TEAM-HOME")));
+            return;
+        }
+
+        team.setHome(null);
+        plugin.getTeamManager().save(team);
+        player.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("TEAM.TEAM-HOME-DELETED")));
+    }
+
+    private boolean canEditTeamHome(Player player, Team team) {
+        return team != null && plugin.getTeamManager().canEditHome(team, player.getUniqueId());
+    }
+
+    private boolean canVisitTeamHome(Player player, Team team) {
+        return team != null && plugin.getTeamManager().canVisitHome(team, player.getUniqueId());
+    }
+
+    private Map<String, String> homePlaceholders(String name, int globalIndex, Location location) {
+        Map<String, String> placeholders = emptyHomePlaceholders(globalIndex);
+        placeholders.put("name", name);
+        placeholders.put("world", friendlyWorldName(location));
+        return placeholders;
+    }
+
+    private Map<String, String> emptyHomePlaceholders(int globalIndex) {
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("name", slotLabel(globalIndex));
+        placeholders.put("slot", slotLabel(globalIndex));
+        placeholders.put("world", "overworld");
+        return placeholders;
+    }
+
+    private String slotLabel(int index) {
+        return "Home " + (index + 1);
+    }
+
+    private String defaultHomeName(int index) {
+        return index == 0 ? "home" : "home" + (index + 1);
+    }
+
+    private String defaultAvailableHomeName(Player player, int index) {
+        String base = defaultHomeName(index);
+        if (plugin.getHomeManager().getHome(player.getUniqueId(), base) == null) {
+            return base;
+        }
+        int counter = 1;
+        while (true) {
+            String candidate = counter == 1 ? "home" : "home" + counter;
+            if (plugin.getHomeManager().getHome(player.getUniqueId(), candidate) == null) {
+                return candidate;
+            }
+            counter++;
+        }
+    }
+
+    static int parseHomeSlot(String name) {
+        if (name == null || name.isBlank()) {
+            return -1;
+        }
+        String trimmed = name.trim();
+        if (trimmed.equalsIgnoreCase("home")) {
+            return 0;
+        }
+        if (trimmed.regionMatches(true, 0, "home", 0, 4)) {
+            String suffix = trimmed.substring(4);
+            try {
+                int number = Integer.parseInt(suffix);
+                if (number >= 1) {
+                    return number - 1;
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        try {
+            int number = Integer.parseInt(trimmed);
+            if (number >= 1) {
+                return number - 1;
+            }
+        } catch (NumberFormatException ignored) {
+        }
+        return -1;
+    }
+
+    static Map<Integer, Home> resolveHomeSlots(List<Home> homes) {
+        Map<Integer, Home> slotMap = new HashMap<>();
+        if (homes == null || homes.isEmpty()) {
+            return slotMap;
+        }
+
+        List<Home> unassigned = new ArrayList<>();
+        for (Home home : homes) {
+            if (home == null) continue;
+            int slot = parseHomeSlot(home.getName());
+            if (slot >= 0 && !slotMap.containsKey(slot)) {
+                slotMap.put(slot, home);
+            } else {
+                unassigned.add(home);
+            }
+        }
+
+        int nextSlot = 0;
+        for (Home home : unassigned) {
+            while (slotMap.containsKey(nextSlot)) {
+                nextSlot++;
+            }
+            slotMap.put(nextSlot, home);
+            nextSlot++;
+        }
+
+        return slotMap;
+    }
+
+    private String friendlyWorldName(Location location) {
+        if (location == null || location.getWorld() == null) return "overworld";
+
+        World.Environment environment = location.getWorld().getEnvironment();
+        return switch (environment) {
+            case NETHER -> "nether";
+            case THE_END -> "end";
+            default -> "overworld";
+        };
+    }
+
+    private Material material(String path, Material fallback) {
+        return ItemUtils.parseMaterial(menus().getString(path, fallback.name()));
+    }
+
+    private String text(String path, String fallback, Map<String, String> placeholders) {
+        return replacePlaceholders(menus().getString(path, fallback), placeholders);
+    }
+
+    private List<String> lore(String path, List<String> fallback, Map<String, String> placeholders) {
+        List<String> lines = new ArrayList<>();
+        Object raw = menus().get(path);
+
+        if (raw instanceof List<?> list) {
+            for (Object entry : list) {
+                lines.add(String.valueOf(entry));
+            }
+        } else if (raw instanceof String string && !string.isBlank()) {
+            lines.add(string);
+        } else {
+            lines.addAll(fallback);
+        }
+
+        for (int i = 0; i < lines.size(); i++) {
+            lines.set(i, replacePlaceholders(lines.get(i), placeholders));
+        }
+        return lines;
+    }
+
+    private List<String> defaultTeamTeleportLore(Team team, String state) {
+        if ("NO_TEAM".equals(state)) return List.of("&7You are not in a team.");
+        if ("NO_HOME".equals(state)) return List.of("&7Click to create your team home.");
+        return List.of("&7World: &f{world}", "&aLeft-click to teleport");
+    }
+
+    private List<String> defaultTeamActionLore(Team team, String state) {
+        if ("NO_TEAM".equals(state)) return List.of("&7You are not in a team.");
+        if ("NO_HOME".equals(state)) return List.of("&7Left-click to save your team home.");
+        return List.of("&bLeft-click to update the team home", "&cRight-click to delete");
+    }
+
+    private String replacePlaceholders(String value, Map<String, String> placeholders) {
+        String output = value == null ? "" : value;
+        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            output = output.replace("{" + entry.getKey() + "}", entry.getValue());
+        }
+        return output;
+    }
+
+    private FileConfiguration menus() {
+        return plugin.getConfigManager().getMenus();
+    }
+
+    private void fillWithFiller() {
+        ItemStack filler = blank(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
+        for (int i = 0; i < inventory.getSize(); i++) {
+            set(i, filler);
+        }
+    }
+
+    private ItemStack blank(Material material) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ColorUtils.toComponent(" "));
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private static String configuredTitle(UltimateDonutSmp plugin) {
+        return plugin.getConfigManager().getMenus().getString("HOME-MENU.TITLE", "&8Homes");
+    }
+
+    /** A player who loses a rank can hold a page number their homes no longer stretch to. */
+    static int clampPage(int page, int totalPages) {
+        return Math.max(0, Math.min(page, totalPages - 1));
+    }
+
+    private static int configuredSize(UltimateDonutSmp plugin) {
+        int size = plugin.getConfigManager().getMenus().getInt("HOME-MENU.SIZE", 36);
+        return size >= 27 && size % 9 == 0 ? size : 36;
+    }
+
+    @FunctionalInterface
+    private interface SlotAction {
+        void execute(Player player, ClickType clickType);
+    }
+}

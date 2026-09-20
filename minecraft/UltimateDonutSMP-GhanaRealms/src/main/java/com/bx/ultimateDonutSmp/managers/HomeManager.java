@@ -1,0 +1,342 @@
+package com.bx.ultimateDonutSmp.managers;
+
+import com.bx.ultimateDonutSmp.utils.LazyLocation;
+import com.bx.ultimateDonutSmp.utils.PermissionUtils;
+
+import com.bx.ultimateDonutSmp.UltimateDonutSmp;
+import com.bx.ultimateDonutSmp.menus.HomeMenu;
+import com.bx.ultimateDonutSmp.models.Home;
+import com.bx.ultimateDonutSmp.utils.ColorUtils;
+import org.bukkit.Location;
+import org.bukkit.World;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Player;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class HomeManager {
+
+    private static final int HOMES_PER_PAGE = 5;
+    private static final int MAX_PERMISSION_VALUE = 100;
+    private static final String HOMES_PERMISSION_PREFIX = "ultimatedonutsmp.homes.";
+    private static final String HOME_PAGES_PERMISSION_PREFIX = "ultimatedonutsmp.homes.page.";
+
+    private final UltimateDonutSmp plugin;
+    /** UUID → list of homes */
+    private final Map<UUID, List<Home>> cache = new HashMap<>();
+    private final Map<UUID, PendingHomeInput> pendingInputs = new ConcurrentHashMap<>();
+
+    public HomeManager(UltimateDonutSmp plugin) {
+        this.plugin = plugin;
+    }
+
+    public void loadHomes(Player player) {
+        List<Home> homes = plugin.getDatabaseManager().loadHomes(player.getUniqueId());
+        if (homes != null) {
+            cache.put(player.getUniqueId(), homes);
+        } else {
+            plugin.getLogger().warning("Failed to load homes from database for " + player.getName() + " (" + player.getUniqueId() + "). Preserving existing state.");
+        }
+    }
+
+    public void unloadHomes(UUID uuid) {
+        cache.remove(uuid);
+    }
+
+    public void clearAllCaches() {
+        cache.clear();
+        pendingInputs.clear();
+    }
+
+    public List<Home> getHomes(UUID uuid) {
+        return cache.getOrDefault(uuid, Collections.emptyList());
+    }
+
+    public Home getHome(UUID uuid, String name) {
+        for (Home h : getHomes(uuid)) {
+            if (h.getName().equalsIgnoreCase(name)) return h;
+        }
+        return null;
+    }
+
+    public int getHomeCount(UUID uuid) {
+        return getHomes(uuid).size();
+    }
+
+    private FileConfiguration getConfig() {
+        return plugin != null && plugin.getConfigManager() != null
+                ? plugin.getConfigManager().getConfig()
+                : null;
+    }
+
+    public boolean isWorldExcluded(String worldName) {
+        if (worldName == null || worldName.isBlank()) {
+            return false;
+        }
+        FileConfiguration config = getConfig();
+        if (config == null) {
+            return false;
+        }
+        List<String> excluded = config.getStringList("SETTINGS.HOME-EXCLUDED-WORLDS");
+        if (excluded.isEmpty()) {
+            excluded = config.getStringList("HOME.EXCLUDED-WORLDS");
+        }
+        for (String w : excluded) {
+            if (w != null && w.trim().equalsIgnoreCase(worldName.trim())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isWorldExcluded(World world) {
+        return world != null && isWorldExcluded(world.getName());
+    }
+
+    public boolean isHomePermissionsEnabled() {
+        FileConfiguration config = getConfig();
+        return config == null || config.getBoolean("SETTINGS.HOME-PERMISSIONS.ENABLED", true);
+    }
+
+    public int getDefaultHomes() {
+        FileConfiguration config = getConfig();
+        return Math.max(1, config == null ? 5 : config.getInt("SETTINGS.HOME-DEFAULT", 5));
+    }
+
+    /**
+     * Highest home count the player is entitled to by permission, or 0 when no home permission applies.
+     */
+    public int getPermissionHomes(Player player) {
+        if (player == null || !isHomePermissionsEnabled()) {
+            return 0;
+        }
+
+        int resolved = PermissionUtils.resolveHighestExactNumberedPermission(
+                player, HOMES_PERMISSION_PREFIX, MAX_PERMISSION_VALUE);
+        int pagesByPermission = PermissionUtils.resolveHighestExactNumberedPermission(
+                player, HOME_PAGES_PERMISSION_PREFIX, MAX_PERMISSION_VALUE);
+        resolved = Math.max(resolved, pagesByPermission * HOMES_PER_PAGE);
+
+        FileConfiguration config = getConfig();
+        ConfigurationSection section = config == null
+                ? null
+                : config.getConfigurationSection("SETTINGS.HOME-PERMISSIONS.PERMISSIONS");
+        if (section != null) {
+            for (Map.Entry<String, Object> entry : section.getValues(true).entrySet()) {
+                if (!(entry.getValue() instanceof Number number)) {
+                    continue;
+                }
+                if (!PermissionUtils.hasExact(player, entry.getKey())) {
+                    continue;
+                }
+                resolved = Math.max(resolved, number.intValue());
+            }
+        }
+
+        return Math.max(0, resolved);
+    }
+
+    public int getMaxHomes(Player player) {
+        int permissionHomes = getPermissionHomes(player);
+        return permissionHomes > 0 ? permissionHomes : getDefaultHomes();
+    }
+
+    public int getMaxHomePages(Player player) {
+        int maxHomes = getMaxHomes(player);
+        return Math.max(1, (int) Math.ceil(maxHomes / (double) HOMES_PER_PAGE));
+    }
+
+    public boolean canSetHome(Player player) {
+        return getHomeCount(player.getUniqueId()) < getMaxHomes(player);
+    }
+
+    public boolean setHome(Player player, String name) {
+        return setHome(player.getUniqueId(), name, player.getLocation());
+    }
+
+    public boolean setHome(UUID uuid, String name, Location location) {
+        if (location == null) return false;
+        String worldName = location.getWorld() != null ? location.getWorld().getName() : null;
+        if (location instanceof LazyLocation lazy) {
+            worldName = lazy.getWorldName();
+        }
+        if (worldName == null || worldName.isBlank()) return false;
+
+        Location targetLocation = new LazyLocation(
+                worldName,
+                location.getX(),
+                location.getY(),
+                location.getZ(),
+                location.getYaw(),
+                location.getPitch()
+        );
+
+        List<Home> homes = cache.computeIfAbsent(uuid, k -> new ArrayList<>());
+        // Update existing
+        for (Home h : homes) {
+            if (h.getName().equalsIgnoreCase(name)) {
+                h.setLocation(targetLocation);
+                plugin.getDatabaseManager().saveHome(h);
+                return true;
+            }
+        }
+        // Create new
+        Player player = plugin.getServer().getPlayer(uuid);
+        if (player != null && homes.size() >= getMaxHomes(player)) return false;
+        Home home = new Home(uuid, name, targetLocation);
+        homes.add(home);
+        plugin.getDatabaseManager().saveHome(home);
+        return true;
+    }
+
+    public boolean deleteHome(UUID uuid, String name) {
+        List<Home> homes = cache.get(uuid);
+        if (homes == null) return false;
+        boolean removed = homes.removeIf(h -> h.getName().equalsIgnoreCase(name));
+        if (removed) plugin.getDatabaseManager().deleteHome(uuid, name);
+        return removed;
+    }
+
+    public boolean renameHome(UUID uuid, String oldName, String newName) {
+        // Check newName not already taken
+        if (getHome(uuid, newName) != null) return false;
+        Home home = getHome(uuid, oldName);
+        if (home == null) return false;
+        plugin.getDatabaseManager().deleteHome(uuid, oldName);
+        home.setName(newName);
+        plugin.getDatabaseManager().saveHome(home);
+        return true;
+    }
+
+    public void promptCreateHome(Player player, Location location, String suggestedName) {
+        String worldName = location != null && location.getWorld() != null ? location.getWorld().getName() : null;
+        if (worldName == null && location instanceof LazyLocation lazy) {
+            worldName = lazy.getWorldName();
+        }
+        if (worldName != null && isWorldExcluded(worldName)
+                && !PermissionUtils.has(player, "ultimatedonutsmp.homes.bypass")) {
+            player.sendMessage(ColorUtils.toComponent(
+                    plugin.getConfigManager().getMessage("HOME.EXCLUDED-WORLD")));
+            return;
+        }
+        pendingInputs.put(player.getUniqueId(), PendingHomeInput.create(location, suggestedName));
+        player.closeInventory();
+        player.sendMessage(ColorUtils.toComponent(
+                plugin.getConfigManager().getMessage("HOME.NAME-PROMPT", "{name}", suggestedName)));
+    }
+
+    public void promptRenameHome(Player player, String oldName) {
+        pendingInputs.put(player.getUniqueId(), PendingHomeInput.rename(oldName));
+        player.closeInventory();
+        player.sendMessage(ColorUtils.toComponent(
+                plugin.getConfigManager().getMessage("HOME.RENAME-PROMPT", "{name}", oldName)));
+    }
+
+    public boolean hasPendingInput(UUID uuid) {
+        return pendingInputs.containsKey(uuid);
+    }
+
+    public void handlePendingInput(Player player, String rawInput) {
+        PendingHomeInput pending = pendingInputs.get(player.getUniqueId());
+        if (pending == null) return;
+
+        String input = rawInput == null ? "" : rawInput.trim();
+        if (input.equalsIgnoreCase("cancel")) {
+            pendingInputs.remove(player.getUniqueId());
+            player.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("HOME.CANCELLED")));
+            return;
+        }
+
+        if (!isValidHomeName(input)) {
+            player.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("HOME.INVALID-NAME")));
+            resendPrompt(player, pending);
+            return;
+        }
+
+        if (pending.type == PendingHomeInput.Type.CREATE) {
+            String pendingWorld = pending.location != null && pending.location.getWorld() != null
+                    ? pending.location.getWorld().getName()
+                    : null;
+            if (pendingWorld == null && pending.location instanceof LazyLocation lazy) {
+                pendingWorld = lazy.getWorldName();
+            }
+            if (pendingWorld != null && isWorldExcluded(pendingWorld)
+                    && !PermissionUtils.has(player, "ultimatedonutsmp.homes.bypass")) {
+                pendingInputs.remove(player.getUniqueId());
+                player.sendMessage(ColorUtils.toComponent(
+                        plugin.getConfigManager().getMessage("HOME.EXCLUDED-WORLD")));
+                return;
+            }
+            if (getHome(player.getUniqueId(), input) != null) {
+                player.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("HOME.ALREADY-EXISTS")));
+                resendPrompt(player, pending);
+                return;
+            }
+            if (!setHome(player.getUniqueId(), input, pending.location)) {
+                pendingInputs.remove(player.getUniqueId());
+                player.sendMessage(ColorUtils.toComponent("&cYou cannot create another home right now."));
+                return;
+            }
+
+            pendingInputs.remove(player.getUniqueId());
+            player.sendMessage(ColorUtils.toComponent(plugin.getConfigManager().getMessage("HOME.SET")));
+            new HomeMenu(plugin).open(player);
+            return;
+        }
+
+        if (!renameHome(player.getUniqueId(), pending.oldName, input)) {
+            player.sendMessage(ColorUtils.toComponent("&cFailed to rename home. Try another name."));
+            resendPrompt(player, pending);
+            return;
+        }
+
+        pendingInputs.remove(player.getUniqueId());
+        player.sendMessage(ColorUtils.toComponent(
+                plugin.getConfigManager().getMessage("HOME.RENAME-SUCCESS", "{name}", input)));
+        new HomeMenu(plugin).open(player);
+    }
+
+    private boolean isValidHomeName(String input) {
+        return !input.isBlank() && !input.contains(" ");
+    }
+
+    private void resendPrompt(Player player, PendingHomeInput pending) {
+        if (pending.type == PendingHomeInput.Type.CREATE) {
+            player.sendMessage(ColorUtils.toComponent(
+                    plugin.getConfigManager().getMessage("HOME.NAME-PROMPT", "{name}", pending.suggestedName)));
+            return;
+        }
+
+        player.sendMessage(ColorUtils.toComponent(
+                plugin.getConfigManager().getMessage("HOME.RENAME-PROMPT", "{name}", pending.oldName)));
+    }
+
+    private static final class PendingHomeInput {
+        private final Type type;
+        private final String oldName;
+        private final String suggestedName;
+        private final Location location;
+
+        private PendingHomeInput(Type type, String oldName, String suggestedName, Location location) {
+            this.type = type;
+            this.oldName = oldName;
+            this.suggestedName = suggestedName;
+            this.location = location == null ? null : location.clone();
+        }
+
+        private static PendingHomeInput create(Location location, String suggestedName) {
+            return new PendingHomeInput(Type.CREATE, null, suggestedName, location);
+        }
+
+        private static PendingHomeInput rename(String oldName) {
+            return new PendingHomeInput(Type.RENAME, oldName, null, null);
+        }
+
+        private enum Type {
+            CREATE,
+            RENAME
+        }
+    }
+}

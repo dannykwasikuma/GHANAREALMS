@@ -1,0 +1,17 @@
+# Node / Next.js
+web/node_modules/
+web/.next/
+web/.env.local
+web/.env*.local
+web/npm-debug.log*
+
+# Java / Maven
+minecraft/*/target/
+*.class
+
+# OS
+.DS_Store
+
+# Never commit real secrets
+*.pem
+*.key

@@ -1,0 +1,179 @@
+package com.bx.ultimateDonutSmp.managers;
+
+import com.bx.ultimateDonutSmp.UltimateDonutSmp;
+import com.bx.ultimateDonutSmp.models.PlayerData;
+import com.bx.ultimateDonutSmp.utils.ColorUtils;
+import com.bx.ultimateDonutSmp.utils.PlayerSettingUtils;
+import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+
+import com.bx.ultimateDonutSmp.utils.PermissionUtils;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class CombatManager {
+
+    private final UltimateDonutSmp plugin;
+    /** UUID → expiry time in millis */
+    private final Map<UUID, Long> combatMap = new ConcurrentHashMap<>();
+    private final Map<UUID, BukkitTask> tasks = new ConcurrentHashMap<>();
+
+    public CombatManager(UltimateDonutSmp plugin) {
+        this.plugin = plugin;
+    }
+
+    public void tag(Player player) {
+        if (!isEnabled()) return;
+        long cooldownMillis = getCooldownSeconds() * 1000L;
+        combatMap.put(player.getUniqueId(), System.currentTimeMillis() + cooldownMillis);
+        startCountdown(player);
+
+        if (player.getAllowFlight()
+                && player.getGameMode() != org.bukkit.GameMode.CREATIVE
+                && player.getGameMode() != org.bukkit.GameMode.SPECTATOR) {
+            if (plugin.getConfigManager().getConfig().getBoolean("FLY-SYSTEM.AUTO-DISABLE-OUTSIDE", true)) {
+                if (!PermissionUtils.has(player, "ultimatedonutsmp.staff.fly")) {
+                    player.setFlying(false);
+                    player.setAllowFlight(false);
+                    String msg = plugin.getConfigManager().getMessageOrDefault(
+                            "FLY.PLAYER_DISABLED",
+                            "&c✗ &7Flight deactivated because you left the allowed area or entered combat."
+                    );
+                    player.sendMessage(ColorUtils.toComponent(msg));
+                }
+            }
+        }
+    }
+
+    private void startCountdown(Player player) {
+        UUID uuid = player.getUniqueId();
+        BukkitTask old = tasks.remove(uuid);
+        if (old != null) old.cancel();
+
+        BukkitTask task = plugin.getSpigotScheduler().runEntityTimer(player, () -> {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null || !isInCombat(uuid)) {
+                BukkitTask t = tasks.remove(uuid);
+                if (t != null) t.cancel();
+                return;
+            }
+            if (!showsCombatTimer(profileOf(p))) {
+                return;
+            }
+            long remaining = getRemainingSeconds(uuid);
+            String format = plugin.getConfigManager().getConfig()
+                    .getString("COMBAT-MANAGER.ACTION-BAR", "&fcombat: &b${time}s")
+                    .replace("${time}", String.valueOf(remaining))
+                    .replace("{time}", String.valueOf(remaining));
+            PlayerSettingUtils.sendActionBar(plugin, p, ColorUtils.toComponent(format));
+        }, 0L, 20L);
+        if (task != null) {
+            tasks.put(uuid, task);
+        }
+    }
+
+    /**
+     * Whether the countdown should be drawn for this player.
+     *
+     * <p>The tag itself is unaffected: a player who hides the timer is still in combat, still has
+     * their commands blocked, and still dies on logout where the server turns that on. A player the
+     * plugin has no profile for keeps seeing it, so the timer never goes missing by accident.</p>
+     */
+    static boolean showsCombatTimer(PlayerData data) {
+        return data == null || data.isCombatTimerEnabled();
+    }
+
+    private PlayerData profileOf(Player player) {
+        return plugin.getPlayerDataManager() == null ? null : plugin.getPlayerDataManager().get(player);
+    }
+
+    public void clearTag(UUID uuid) {
+        combatMap.remove(uuid);
+        BukkitTask task = tasks.remove(uuid);
+        if (task != null) task.cancel();
+        Player p = Bukkit.getPlayer(uuid);
+        if (p != null) PlayerSettingUtils.clearActionBar(p);
+    }
+
+    public boolean isInCombat(UUID uuid) {
+        Long expiry = combatMap.get(uuid);
+        if (expiry == null) return false;
+        if (System.currentTimeMillis() >= expiry) {
+            clearTag(uuid);
+            return false;
+        }
+        return true;
+    }
+
+    public long getRemainingSeconds(UUID uuid) {
+        Long expiry = combatMap.get(uuid);
+        if (expiry == null) return 0;
+        return remainingSeconds(expiry, System.currentTimeMillis());
+    }
+
+    /**
+     * Rounds the leftover millis up, so a tag with 19.95 seconds on it still reads 20. The action
+     * bar draws its first frame a tick after the expiry is stamped, so truncating here opened a
+     * twenty second tag on 19 and finished on a second of 0 while the player was still tagged.
+     */
+    static long remainingSeconds(long expiryMillis, long nowMillis) {
+        long remainingMillis = expiryMillis - nowMillis;
+        return remainingMillis <= 0L ? 0L : (remainingMillis + 999L) / 1000L;
+    }
+
+    public boolean isEnabled() {
+        return plugin.getFeatureManager().isEnabled(FeatureManager.Feature.COMBAT)
+                && plugin.getConfigManager().getConfig()
+                .getBoolean("COMBAT-MANAGER.ENABLED", true);
+    }
+
+    public int getCooldownSeconds() {
+        return plugin.getConfigManager().getConfig()
+                .getInt("COMBAT-MANAGER.COOLDOWN", 16);
+    }
+
+    public boolean isKillOnLogoutEnabled() {
+        return plugin.getConfigManager().getConfig()
+                .getBoolean("COMBAT-MANAGER.KILL-ON-LOGOUT", false);
+    }
+
+    public boolean isMobCombatEnabled() {
+        return plugin.getConfigManager().getConfig()
+                .getBoolean("COMBAT-MANAGER.MOBS", false);
+    }
+
+    public boolean isEnderCrystalCombatEnabled() {
+        return plugin.getConfigManager().getConfig()
+                .getBoolean("COMBAT-MANAGER.ENDER-CRYSTAL", true);
+    }
+
+    public boolean isEnderPearlCombatEnabled() {
+        return plugin.getConfigManager().getConfig()
+                .getBoolean("COMBAT-MANAGER.ENDER-PEARL", true);
+    }
+
+    public boolean isRespawnAnchorCombatEnabled() {
+        return plugin.getConfigManager().getConfig()
+                .getBoolean("COMBAT-MANAGER.RESPAWN-ANCHOR", true);
+    }
+
+    public boolean isBlockedCommand(String command) {
+        for (String blocked : plugin.getConfigManager().getConfig()
+                .getStringList("COMBAT-MANAGER.BLOCK-COMMANDS")) {
+            if (blocked.equalsIgnoreCase(command) ||
+                command.toLowerCase().startsWith(blocked.toLowerCase() + " ")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isExcludedWorld(String worldName) {
+        return plugin.getConfigManager().getConfig()
+                .getStringList("COMBAT-MANAGER.EXCLUDED-WORLDS")
+                .contains(worldName);
+    }
+}

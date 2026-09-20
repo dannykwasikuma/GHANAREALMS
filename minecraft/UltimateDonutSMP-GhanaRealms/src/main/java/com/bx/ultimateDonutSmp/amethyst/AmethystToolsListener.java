@@ -1,0 +1,917 @@
+package com.bx.ultimateDonutSmp.amethyst;
+
+import com.bx.ultimateDonutSmp.utils.PermissionUtils;
+
+import com.bx.ultimateDonutSmp.UltimateDonutSmp;
+import com.bx.ultimateDonutSmp.managers.CurrencyManager;
+import com.bx.ultimateDonutSmp.managers.ShardManager;
+import com.bx.ultimateDonutSmp.managers.ShopManager;
+import com.bx.ultimateDonutSmp.models.EconomyReason;
+import com.bx.ultimateDonutSmp.models.PlayerData;
+import com.bx.ultimateDonutSmp.utils.ColorUtils;
+import com.bx.ultimateDonutSmp.utils.SoundUtils;
+import org.bukkit.GameMode;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Item;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDamageEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.inventory.InventoryAction;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryMoveItemEvent;
+import org.bukkit.event.inventory.InventoryPickupItemEvent;
+import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.FluidCollisionMode;
+import org.bukkit.block.data.Waterlogged;
+import org.bukkit.event.player.PlayerBucketFillEvent;
+import org.bukkit.event.player.PlayerItemConsumeEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.RayTraceResult;
+
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.Set;
+
+public class AmethystToolsListener implements Listener {
+
+    /** PlayerInventory keeps the off hand at slot 40; the main hand moves with the hotbar cursor. */
+    private static final int OFF_HAND_SLOT = 40;
+
+    private final UltimateDonutSmp plugin;
+    private final AmethystToolsManager manager;
+    private final ThreadLocal<Boolean> isProcessingAoe = ThreadLocal.withInitial(() -> false);
+
+    public AmethystToolsListener(UltimateDonutSmp plugin) {
+        this.plugin = plugin;
+        this.manager = plugin.getAmethystToolsManager();
+    }
+
+    /**
+     * Inventory upkeep - splitting stacks, stamping identity, clearing expired tools - stays off in
+     * creative, where the client owns the inventory and correcting it only causes desync. What the
+     * tool itself does is not gated on the game mode.
+     */
+    static boolean shouldManageInventory(GameMode gameMode) {
+        return gameMode != GameMode.CREATIVE;
+    }
+
+    /** Breaking a block in creative drops nothing in vanilla, so neither does an amethyst tool. */
+    static boolean shouldDropAoeLoot(GameMode gameMode) {
+        return gameMode != GameMode.CREATIVE;
+    }
+
+    /**
+     * Where a consumed item actually sat. Drinking is not always main-hand - a potion in the off
+     * hand is used whenever the main-hand item has no use of its own - so the slot has to come from
+     * the hand the event reports rather than from whatever the hotbar cursor happens to be on.
+     * A null hand falls back to the held slot, which is what the pre-1.19.2 event assumed.
+     */
+    static int consumedSlot(EquipmentSlot hand, int heldSlot) {
+        return hand == EquipmentSlot.OFF_HAND ? OFF_HAND_SLOT : heldSlot;
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBlockDamage(BlockDamageEvent event) {
+        Player player = event.getPlayer();
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (manager.isAmethystTool(item)) {
+            manager.suppressVisualSync(player.getUniqueId(), 10000L);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBlockBreak(BlockBreakEvent event) {
+        if (isProcessingAoe.get()) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (!manager.isAmethystTool(item)) {
+            return;
+        }
+
+        boolean manageInventory = shouldManageInventory(player.getGameMode());
+
+        if (item.getAmount() > 1) {
+            if (!manageInventory) {
+                return;
+            }
+            manager.sanitizeHeldItem(player, false);
+            return;
+        }
+
+        if (manageInventory) {
+            manager.ensureIdentity(item, player.getUniqueId(), false);
+        }
+        AmethystToolType type = manager.getToolType(item);
+        if (type != AmethystToolType.DRILL && type != AmethystToolType.SHOVEL && type != AmethystToolType.CHOPPER) {
+            return;
+        }
+
+        if (!canUseTool(player, item, type, false, true, EquipmentSlot.HAND)) {
+            event.setCancelled(true);
+            player.sendBlockChange(event.getBlock().getLocation(), event.getBlock().getBlockData());
+            return;
+        }
+
+        switch (type) {
+            case DRILL -> handleDrill(event, player, item);
+            case SHOVEL -> handleShovel(event, player, item);
+            case CHOPPER -> handleChopper(event, player, item);
+            default -> {
+            }
+        }
+    }
+
+    private void handleDrill(BlockBreakEvent event, Player player, ItemStack item) {
+        manager.suppressVisualSync(player.getUniqueId(), 10000L);
+        Block origin = event.getBlock();
+        ConfigurationSection cfg = manager.getToolSection(AmethystToolType.DRILL);
+        int radius = cfg != null ? cfg.getInt("RADIUS", 1) : 1;
+
+        Set<Material> disabled = manager.getDisabledBlocks();
+        if (disabled.contains(origin.getType())) {
+            return;
+        }
+
+        List<Block> toBreak = getAoeBlocks(origin, player, radius);
+        toBreak.remove(origin);
+
+        int count = 1;
+        int particlesSpawned = 0;
+        manager.spawnAmethystParticles(origin.getLocation());
+
+        isProcessingAoe.set(true);
+        try {
+            for (Block block : toBreak) {
+                if (disabled.contains(block.getType()) || block.getType().isAir()) {
+                    continue;
+                }
+
+                BlockBreakEvent simulated = new BlockBreakEvent(block, player);
+                plugin.getServer().getPluginManager().callEvent(simulated);
+                if (simulated.isCancelled()) {
+                    player.sendBlockChange(block.getLocation(), block.getBlockData());
+                    continue;
+                }
+
+                breakAoeBlock(player, block, item);
+                if (particlesSpawned < 4) {
+                    manager.spawnAmethystParticles(block.getLocation());
+                    particlesSpawned++;
+                }
+                count++;
+            }
+        } finally {
+            isProcessingAoe.set(false);
+        }
+
+        SoundUtils.play(player, manager.getSound("BREAK"));
+        if (count > 1 && shouldSendBreakMessages(player)) {
+            player.sendMessage(ColorUtils.toComponent(
+                    manager.getMessage("DRILL-BREAK", "{count}", String.valueOf(count))));
+        }
+    }
+
+    private void handleShovel(BlockBreakEvent event, Player player, ItemStack item) {
+        manager.suppressVisualSync(player.getUniqueId(), 10000L);
+        Block origin = event.getBlock();
+        ConfigurationSection cfg = manager.getToolSection(AmethystToolType.SHOVEL);
+        int radius = cfg != null ? cfg.getInt("RADIUS", 1) : 1;
+
+        Set<Material> allowed = manager.getAllowedBlocks();
+        if (!allowed.contains(origin.getType())) {
+            return;
+        }
+
+        List<Block> toBreak = getAoeBlocks(origin, player, radius);
+        toBreak.remove(origin);
+
+        int count = 1;
+        int particlesSpawned = 0;
+        manager.spawnAmethystParticles(origin.getLocation());
+
+        isProcessingAoe.set(true);
+        try {
+            for (Block block : toBreak) {
+                if (!allowed.contains(block.getType()) || block.getType().isAir()) {
+                    continue;
+                }
+
+                BlockBreakEvent simulated = new BlockBreakEvent(block, player);
+                plugin.getServer().getPluginManager().callEvent(simulated);
+                if (simulated.isCancelled()) {
+                    player.sendBlockChange(block.getLocation(), block.getBlockData());
+                    continue;
+                }
+
+                breakAoeBlock(player, block, item);
+                if (particlesSpawned < 4) {
+                    manager.spawnAmethystParticles(block.getLocation());
+                    particlesSpawned++;
+                }
+                count++;
+            }
+        } finally {
+            isProcessingAoe.set(false);
+        }
+
+        SoundUtils.play(player, manager.getSound("BREAK"));
+        if (count > 1 && shouldSendBreakMessages(player)) {
+            player.sendMessage(ColorUtils.toComponent(
+                    manager.getMessage("DRILL-BREAK", "{count}", String.valueOf(count))));
+        }
+    }
+
+    private void handleChopper(BlockBreakEvent event, Player player, ItemStack item) {
+        manager.suppressVisualSync(player.getUniqueId(), 10000L);
+        Block origin = event.getBlock();
+        Set<Material> logBlocks = manager.getLogBlocks();
+        if (!logBlocks.contains(origin.getType())) {
+            return;
+        }
+
+        ConfigurationSection cfg = manager.getToolSection(AmethystToolType.CHOPPER);
+        int maxLogs = cfg != null ? cfg.getInt("MAX-LOGS", 128) : 128;
+
+        List<Block> logs = bfsLogs(origin, logBlocks, maxLogs);
+        logs.remove(origin);
+
+        int count = 1;
+        int particlesSpawned = 0;
+        manager.spawnAmethystParticles(origin.getLocation());
+
+        isProcessingAoe.set(true);
+        try {
+            for (Block log : logs) {
+                if (log.getType().isAir()) {
+                    continue;
+                }
+
+                BlockBreakEvent simulated = new BlockBreakEvent(log, player);
+                plugin.getServer().getPluginManager().callEvent(simulated);
+                if (simulated.isCancelled()) {
+                    player.sendBlockChange(log.getLocation(), log.getBlockData());
+                    continue;
+                }
+
+                breakAoeBlock(player, log, item);
+                if (particlesSpawned < 5) {
+                    manager.spawnAmethystParticles(log.getLocation());
+                    particlesSpawned++;
+                }
+                count++;
+            }
+        } finally {
+            isProcessingAoe.set(false);
+        }
+
+        SoundUtils.play(player, manager.getSound("BREAK"));
+        if (shouldSendBreakMessages(player)) {
+            player.sendMessage(ColorUtils.toComponent(
+                    manager.getMessage("CHOP-BREAK", "{count}", String.valueOf(count))));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (!manager.isAmethystTool(item)) {
+            return;
+        }
+
+        if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
+            manager.suppressVisualSync(player.getUniqueId(), 10000L);
+            return;
+        }
+
+        boolean manageInventory = shouldManageInventory(player.getGameMode());
+
+        if (item.getAmount() > 1) {
+            if (!manageInventory) {
+                return;
+            }
+            manager.sanitizeHeldItem(player, false);
+            event.setCancelled(true);
+            return;
+        }
+
+        if (manageInventory) {
+            manager.ensureIdentity(item, player.getUniqueId(), false);
+        }
+        AmethystToolType type = manager.getToolType(item);
+        if (type == null) {
+            event.setCancelled(true);
+            return;
+        }
+
+        switch (type) {
+            case SELL_AXE -> {
+                if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+                    return;
+                }
+                if (!canUseTool(player, item, type, true, true, EquipmentSlot.HAND)) {
+                    event.setCancelled(true);
+                    return;
+                }
+                event.setCancelled(true);
+                handleSellAxe(event, player);
+            }
+            case BUCKET -> {
+                if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.RIGHT_CLICK_AIR) {
+                    return;
+                }
+                event.setCancelled(true);
+                if (!canUseTool(player, item, type, true, true, EquipmentSlot.HAND)) {
+                    return;
+                }
+                handleBucket(event, player);
+            }
+            default -> {
+            }
+        }
+    }
+
+    private void handleSellAxe(PlayerInteractEvent event, Player player) {
+        manager.suppressVisualSync(player.getUniqueId());
+        Block clicked = event.getClickedBlock();
+        if (clicked == null) {
+            player.sendMessage(ColorUtils.toComponent(manager.getMessage("SELL-NO-CHEST")));
+            return;
+        }
+
+        if (clicked.getType() != Material.CHEST
+                && clicked.getType() != Material.TRAPPED_CHEST
+                && clicked.getType() != Material.BARREL) {
+            player.sendMessage(ColorUtils.toComponent(manager.getMessage("SELL-NO-CHEST")));
+            return;
+        }
+
+        if (!(clicked.getState() instanceof org.bukkit.block.Container container)) {
+            player.sendMessage(ColorUtils.toComponent(manager.getMessage("SELL-NO-CHEST")));
+            return;
+        }
+
+        Inventory containerInventory = container.getInventory();
+        ShopManager.SellResult result = plugin.getShopManager().sellInventoryContents(
+                player,
+                containerInventory,
+                0,
+                containerInventory.getSize(),
+                EconomyReason.AMETHYST_SELL,
+                false
+        );
+
+        if (result.status() == ShopManager.SellStatus.NO_SELLABLE_ITEMS) {
+            player.sendMessage(ColorUtils.toComponent(manager.getMessage("SELL-EMPTY")));
+            return;
+        }
+        if (result.status() == ShopManager.SellStatus.TRANSACTION_FAILED) {
+            player.sendMessage(ColorUtils.toComponent(manager.getMessage("SELL-FAILED")));
+            return;
+        }
+
+        manager.spawnAmethystParticles(clicked.getLocation().add(0.5, 1, 0.5));
+        SoundUtils.play(player, manager.getSound("USE"));
+        player.sendMessage(ColorUtils.toComponent(
+                manager.getMessage("SELL-SUCCESS",
+                        "{amount}", plugin.getCurrencyManager().formatCompactAmount(CurrencyManager.CurrencyType.MONEY, result.totalPayout()),
+                        "{amount_formatted}", plugin.getCurrencyManager().formatMoney(result.totalPayout()))));
+    }
+
+    private void handleBucket(PlayerInteractEvent event, Player player) {
+        Block target = null;
+        try {
+            RayTraceResult hit = player.rayTraceBlocks(5.0, FluidCollisionMode.ALWAYS);
+            if (hit != null && hit.getHitBlock() != null) {
+                target = hit.getHitBlock();
+            }
+        } catch (Exception ignored) {
+        }
+        if (target == null) {
+            target = event.getClickedBlock();
+        }
+        drainWaterAt(player, target);
+    }
+
+    private void drainWaterAt(Player player, Block target) {
+        manager.suppressVisualSync(player.getUniqueId(), 10000L);
+        if (target == null) {
+            player.sendMessage(ColorUtils.toComponent(manager.getMessage("BUCKET-NO-WATER")));
+            return;
+        }
+
+        ConfigurationSection cfg = manager.getToolSection(AmethystToolType.BUCKET);
+        int radius = cfg != null ? cfg.getInt("DRAIN-RADIUS", 1) : 1;
+        int maxDrain = cfg != null ? cfg.getInt("MAX-DRAIN", 27) : 27;
+
+        List<Block> waterBlocks = bfsWater(target, radius, maxDrain);
+        if (waterBlocks.isEmpty()) {
+            player.sendMessage(ColorUtils.toComponent(manager.getMessage("BUCKET-NO-WATER")));
+            return;
+        }
+
+        int particleCount = 0;
+        for (Block water : waterBlocks) {
+            if (water.getBlockData() instanceof Waterlogged wl && wl.isWaterlogged()) {
+                wl.setWaterlogged(false);
+                water.setBlockData(wl);
+                player.sendBlockChange(water.getLocation(), wl);
+            } else {
+                water.setType(Material.AIR);
+                player.sendBlockChange(water.getLocation(), Material.AIR.createBlockData());
+            }
+            if (particleCount < 5) {
+                manager.spawnAmethystParticles(water.getLocation());
+                particleCount++;
+            }
+        }
+
+        SoundUtils.play(player, manager.getSound("USE"));
+        player.sendMessage(ColorUtils.toComponent(
+                manager.getMessage("BUCKET-DRAIN", "{count}", String.valueOf(waterBlocks.size()))));
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onBucketFill(PlayerBucketFillEvent event) {
+        Player player = event.getPlayer();
+        EquipmentSlot hand = event.getHand();
+        ItemStack item = player.getInventory().getItem(hand);
+        if (!manager.isAmethystTool(item)) {
+            return;
+        }
+
+        AmethystToolType type = manager.getToolType(item);
+        if (type != AmethystToolType.BUCKET) {
+            return;
+        }
+
+        event.setCancelled(true);
+        player.updateInventory();
+
+        boolean manageInventory = shouldManageInventory(player.getGameMode());
+        if (item.getAmount() > 1) {
+            if (manageInventory) {
+                manager.sanitizeHeldItem(player, false);
+            }
+            return;
+        }
+
+        if (manageInventory) {
+            manager.ensureIdentity(item, player.getUniqueId(), false);
+        }
+
+        if (!canUseTool(player, item, type, true, true, hand)) {
+            return;
+        }
+
+        Block target = event.getBlock();
+        if (target == null) {
+            target = event.getBlockClicked();
+        }
+        drainWaterAt(player, target);
+    }
+
+    private void handleShardBooster(Player player, EquipmentSlot hand) {
+        manager.suppressVisualSync(player.getUniqueId());
+        ShardManager shardManager = plugin.getShardManager();
+        long durationMillis = manager.getShardBoosterDurationSeconds() * 1000L;
+        boolean activated = shardManager.activateBooster(player, durationMillis);
+        if (!activated) {
+            player.sendMessage(ColorUtils.toComponent(manager.getMessage("BOOSTER-ALREADY")));
+            return;
+        }
+
+        int slot = consumedSlot(hand, player.getInventory().getHeldItemSlot());
+        player.getInventory().setItem(slot, null);
+        SoundUtils.play(player, manager.getSound("ACTIVATE"));
+        manager.spawnAmethystParticles(player.getLocation().add(0, 1, 0));
+        player.sendMessage(ColorUtils.toComponent(manager.getMessage("BOOSTER-ACTIVATED")));
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPlayerConsume(PlayerItemConsumeEvent event) {
+        Player player = event.getPlayer();
+        ItemStack item = event.getItem();
+        if (!manager.isAmethystTool(item)) {
+            return;
+        }
+
+        EquipmentSlot hand = event.getHand();
+
+        if (shouldManageInventory(player.getGameMode())) {
+            manager.ensureIdentity(item, player.getUniqueId(), false);
+        }
+        AmethystToolType type = manager.getToolType(item);
+        if (type != AmethystToolType.SHARD_BOOSTER) {
+            return;
+        }
+
+        if (!canUseTool(player, item, type, false, true, hand)) {
+            event.setCancelled(true);
+            return;
+        }
+
+        handleShardBooster(player, hand);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            return;
+        }
+
+        ItemStack current = event.getCurrentItem();
+        ItemStack cursor = event.getCursor();
+        boolean currentIsAmethystTool = manager.isAmethystTool(current);
+        boolean cursorIsAmethystTool = manager.isAmethystTool(cursor);
+        if (!currentIsAmethystTool && !cursorIsAmethystTool) {
+            return;
+        }
+
+        if (currentIsAmethystTool && cursorIsAmethystTool) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (currentIsAmethystTool) {
+            manager.ensureIdentity(current, event.getClickedInventory() == player.getInventory() ? player.getUniqueId() : null, false);
+            if (current.getAmount() > 1) {
+                if (event.getClickedInventory() == player.getInventory()) {
+                    manager.sanitizeInventorySlot(player, event.getSlot(), false);
+                } else {
+                    manager.sanitizeExternalInventorySlot(player, event.getClickedInventory(), event.getSlot(), false);
+                }
+                event.setCancelled(true);
+                return;
+            }
+            if (!manager.hasValidSignature(current)) {
+                event.setCurrentItem(null);
+                event.setCancelled(true);
+                return;
+            }
+            if (manager.isExpired(current)) {
+                event.setCurrentItem(null);
+                event.setCancelled(true);
+                return;
+            }
+        }
+
+        if (cursorIsAmethystTool) {
+            manager.ensureIdentity(cursor, player.getUniqueId(), false);
+            if (cursor.getAmount() > 1) {
+                manager.sanitizeCursorItem(player, false);
+                event.setCancelled(true);
+                return;
+            }
+            if (!manager.hasValidSignature(cursor) || manager.isExpired(cursor)) {
+                player.setItemOnCursor(null);
+                event.setCancelled(true);
+                return;
+            }
+        }
+
+        if (event.getAction() == InventoryAction.COLLECT_TO_CURSOR) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            return;
+        }
+
+        ItemStack oldCursor = event.getOldCursor();
+        if (!manager.isAmethystTool(oldCursor)) {
+            return;
+        }
+
+        manager.ensureIdentity(oldCursor, player.getUniqueId(), false);
+        if (!manager.hasValidSignature(oldCursor) || manager.isExpired(oldCursor) || oldCursor.getAmount() > 1) {
+            manager.sanitizeCursorItem(player, false);
+        }
+        event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onPrepareAnvil(PrepareAnvilEvent event) {
+        if (manager.isAmethystTool(event.getInventory().getItem(0))
+                || manager.isAmethystTool(event.getInventory().getItem(1))) {
+            event.setResult(null);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onInventoryMoveItem(InventoryMoveItemEvent event) {
+        if (!manager.shouldBlockAutomationPickup()) {
+            return;
+        }
+        if (manager.isAmethystTool(event.getItem())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onInventoryPickupItem(InventoryPickupItemEvent event) {
+        if (!manager.shouldBlockAutomationPickup()) {
+            return;
+        }
+        if (manager.isAmethystTool(event.getItem().getItemStack())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onDrop(PlayerDropItemEvent event) {
+        Player player = event.getPlayer();
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            return;
+        }
+        Item droppedEntity = event.getItemDrop();
+        ItemStack item = droppedEntity.getItemStack();
+        if (!manager.isAmethystTool(item)) {
+            return;
+        }
+
+        manager.ensureIdentity(item, player.getUniqueId(), false);
+        if (!manager.hasValidSignature(item) || item.getAmount() > 1) {
+            event.setCancelled(true);
+            manager.sanitizeHeldItem(player, false);
+            plugin.getSpigotScheduler().runEntity(player, () -> {
+                if (player.isOnline()) {
+                    player.updateInventory();
+                }
+            });
+            return;
+        }
+
+        if (manager.isExpired(item)) {
+            event.setCancelled(true);
+            manager.sanitizeHeldItem(player, true);
+            plugin.getSpigotScheduler().runEntity(player, () -> {
+                if (player.isOnline()) {
+                    player.updateInventory();
+                }
+            });
+            return;
+        }
+
+        droppedEntity.setItemStack(item);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onEntityPickupItem(EntityPickupItemEvent event) {
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            return;
+        }
+
+        Item itemEntity = event.getItem();
+        ItemStack stack = itemEntity.getItemStack();
+        if (!manager.isAmethystTool(stack)) {
+            return;
+        }
+
+        manager.ensureIdentity(stack, player.getUniqueId(), false);
+        if (!manager.hasValidSignature(stack) || stack.getAmount() > 1) {
+            itemEntity.remove();
+            event.setCancelled(true);
+            return;
+        }
+
+        if (manager.isExpired(stack)) {
+            itemEntity.remove();
+            event.setCancelled(true);
+            return;
+        }
+
+        if (!manager.isOwnedBy(player, stack)) {
+            player.sendMessage(ColorUtils.toComponent(manager.getMessage("WRONG-OWNER")));
+            event.setCancelled(true);
+            return;
+        }
+
+        itemEntity.setItemStack(stack);
+    }
+
+    private boolean canUseTool(Player player, ItemStack item, AmethystToolType type, boolean checkCooldown, boolean sendFeedback, EquipmentSlot hand) {
+        if (!manager.hasValidSignature(item)) {
+            return false;
+        }
+
+        if (manager.isExcludedWorld(player.getWorld().getName())) {
+            if (sendFeedback) {
+                player.sendMessage(ColorUtils.toComponent(manager.getMessage("EXCLUDED-WORLD")));
+            }
+            return false;
+        }
+
+        if (manager.isExpired(item)) {
+            manager.expireItemInSlot(player, consumedSlot(hand, player.getInventory().getHeldItemSlot()));
+            return false;
+        }
+
+        String permission = manager.getToolPermission(type);
+        if (!permission.isBlank() && !PermissionUtils.has(player, permission)) {
+            if (sendFeedback) {
+                player.sendMessage(ColorUtils.toComponent(manager.getMessage("NO-PERMISSION")));
+            }
+            return false;
+        }
+
+        if (!manager.isOwnedBy(player, item)) {
+            if (sendFeedback) {
+                player.sendMessage(ColorUtils.toComponent(manager.getMessage("WRONG-OWNER")));
+            }
+            return false;
+        }
+
+        if (checkCooldown && manager.isOnCooldown(player.getUniqueId())) {
+            return false;
+        }
+
+        if (checkCooldown) {
+            manager.stampCooldown(player.getUniqueId());
+        }
+
+        return true;
+    }
+
+    private boolean shouldSendBreakMessages(Player player) {
+        PlayerData data = plugin.getPlayerDataManager().get(player);
+        return data == null || data.isAmethystBreakMessagesEnabled();
+    }
+
+    private void breakAoeBlock(Player player, Block block, ItemStack item) {
+        if (shouldDropAoeLoot(player.getGameMode())) {
+            block.breakNaturally(item);
+        } else {
+            block.setType(Material.AIR);
+        }
+        player.sendBlockChange(block.getLocation(), Material.AIR.createBlockData());
+    }
+
+    private List<Block> getAoeBlocks(Block origin, Player player, int radius) {
+        List<Block> blocks = new ArrayList<>();
+        BlockFace face = getPlayerFace(player);
+        int ox = origin.getX();
+        int oy = origin.getY();
+        int oz = origin.getZ();
+
+        for (int a = -radius; a <= radius; a++) {
+            for (int b = -radius; b <= radius; b++) {
+                Block block;
+                if (face == BlockFace.UP || face == BlockFace.DOWN) {
+                    block = origin.getWorld().getBlockAt(ox + a, oy, oz + b);
+                } else if (face == BlockFace.NORTH || face == BlockFace.SOUTH) {
+                    block = origin.getWorld().getBlockAt(ox + a, oy + b, oz);
+                } else {
+                    block = origin.getWorld().getBlockAt(ox, oy + b, oz + a);
+                }
+                blocks.add(block);
+            }
+        }
+
+        return blocks;
+    }
+
+    private BlockFace getPlayerFace(Player player) {
+        float yaw = player.getLocation().getYaw();
+        float pitch = player.getLocation().getPitch();
+        if (pitch < -45) {
+            return BlockFace.UP;
+        }
+        if (pitch > 45) {
+            return BlockFace.DOWN;
+        }
+        yaw = ((yaw % 360) + 360) % 360;
+        if (yaw < 45 || yaw >= 315) {
+            return BlockFace.SOUTH;
+        }
+        if (yaw < 135) {
+            return BlockFace.WEST;
+        }
+        if (yaw < 225) {
+            return BlockFace.NORTH;
+        }
+        return BlockFace.EAST;
+    }
+
+    private List<Block> bfsLogs(Block start, Set<Material> logMaterials, int maxLogs) {
+        List<Block> result = new ArrayList<>();
+        Set<org.bukkit.Location> visited = new java.util.HashSet<>();
+        Queue<Block> queue = new LinkedList<>();
+        queue.add(start);
+        visited.add(start.getLocation());
+
+        BlockFace[] faces = {
+                BlockFace.UP, BlockFace.DOWN,
+                BlockFace.NORTH, BlockFace.SOUTH,
+                BlockFace.EAST, BlockFace.WEST
+        };
+
+        while (!queue.isEmpty() && result.size() < maxLogs) {
+            Block current = queue.poll();
+            if (!logMaterials.contains(current.getType())) {
+                continue;
+            }
+            result.add(current);
+
+            for (BlockFace face : faces) {
+                Block neighbor = current.getRelative(face);
+                if (!visited.contains(neighbor.getLocation()) && logMaterials.contains(neighbor.getType())) {
+                    visited.add(neighbor.getLocation());
+                    queue.add(neighbor);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    List<Block> bfsWater(Block start, int radius, int max) {
+        List<Block> result = new ArrayList<>();
+        Set<org.bukkit.Location> visited = new java.util.HashSet<>();
+        Queue<Block> queue = new LinkedList<>();
+
+        int sx = start.getX();
+        int sy = start.getY();
+        int sz = start.getZ();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    Block block = start.getWorld().getBlockAt(sx + dx, sy + dy, sz + dz);
+                    if (isWater(block) && visited.add(block.getLocation())) {
+                        queue.add(block);
+                    }
+                }
+            }
+        }
+
+        BlockFace[] faces = {
+                BlockFace.UP, BlockFace.DOWN,
+                BlockFace.NORTH, BlockFace.SOUTH,
+                BlockFace.EAST, BlockFace.WEST
+        };
+
+        while (!queue.isEmpty() && result.size() < max) {
+            Block current = queue.poll();
+            if (!isWater(current)) {
+                continue;
+            }
+            result.add(current);
+
+            for (BlockFace face : faces) {
+                Block neighbor = current.getRelative(face);
+                if (result.size() + queue.size() >= max) {
+                    break;
+                }
+                if (isWater(neighbor) && visited.add(neighbor.getLocation())) {
+                    queue.add(neighbor);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    static boolean isWater(Block block) {
+        if (block == null) {
+            return false;
+        }
+        if (block.getType() == Material.WATER) {
+            return true;
+        }
+        return block.getBlockData() instanceof Waterlogged wl && wl.isWaterlogged();
+    }
+}

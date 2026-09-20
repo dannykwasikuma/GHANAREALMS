@@ -1,0 +1,182 @@
+# ==============================================================================
+# UltimateDonutSMP - Cross-Server Network System Configuration
+# ==============================================================================
+
+NETWORK:
+  # Enable or disable the cross-server network system globally (true / false)
+  ENABLED: true
+
+  # Enable cross-server staff chat sync via Redis (true / false)
+  STAFF_CHAT_ENABLED: true
+
+  # Enable cross-server helpop notification sync (true / false)
+  HELPOP_ENABLED: true
+
+  # Enable cross-server report notification sync (true / false)
+  REPORT_ENABLED: true
+
+  # Enable cross-server staff join/leave notifications (true / false)
+  STAFF_JOIN_LEAVE_ENABLED: true
+
+  # Enable cross-server status heartbeat monitoring (true / false)
+  SERVER_STATUS_ENABLED: true
+
+  # Unique server identifier for this local server instance
+  LOCAL_SERVER_ID: crystal
+
+  # User-friendly server display name
+  LOCAL_DISPLAY_NAME: Crystal
+
+  # Redis pub/sub channel for staff chat messages
+  REDIS_CHANNEL: ultimatedonutsmp:staff-chat
+
+  # Redis pub/sub channel for helpop alerts
+  HELPOP_REDIS_CHANNEL: ultimatedonutsmp:staff-alerts
+
+  # Redis pub/sub channel for player reports
+  REPORT_REDIS_CHANNEL: ultimatedonutsmp:staff-alerts
+
+  # Warn the sender when their staff chat message reached this server's staff but could not be
+  # published to the other servers. Local delivery happens either way (true / false)
+  SEND_LOCAL_FALLBACK_ON_REDIS_ERROR: true
+
+  # Warn sending player if staff alert Redis delivery fails (true / false)
+  STAFF_ALERTS_WARN_SENDER_ON_REDIS_ERROR: false
+
+  # Log staff chat messages to local server console (true / false)
+  LOG_TO_CONSOLE: true
+
+  # Log staff alerts to local server console (true / false)
+  STAFF_ALERTS_LOG_TO_CONSOLE: true
+
+  # Maximum allowed staff chat message length (in characters)
+  MAX_MESSAGE_LENGTH: 512
+
+  # Maximum allowed report/helpop reason text length (in characters)
+  STAFF_ALERTS_MAX_REASON_LENGTH: 256
+
+  # Cooldown between helpop submissions per player (in seconds)
+  HELPOP_COOLDOWN_SECONDS: 30
+
+  # Cooldown between report submissions per player (in seconds)
+  REPORT_COOLDOWN_SECONDS: 60
+
+  # Message format for server online/offline status broadcasts
+  SERVER_STATUS: '&6%server% &eis now %status%&e.'
+
+  # Message format for cross-server staff chat messages
+  STAFF_CHAT: '&8[&dNetwork&8] &7[%server%] &e%player%&8: &f%message%'
+
+  # Message format for staff member server join alert
+  STAFF_JOIN: '&8[&a+&8] &a%player% &7joined &b%server%'
+
+  # Message format for staff member server leave alert
+  STAFF_LEAVE: '&8[&c-&8] &a%player% &7left &b%server%'
+
+# Network status monitoring & HTTP endpoint configuration
+NETWORK-STATUS:
+  # Enable network status monitoring dashboard (true / false)
+  ENABLED: true
+
+  # Local server ID alias for status check
+  LOCAL-SERVER-ID: crystal
+
+  # Local display name alias for status check
+  LOCAL-DISPLAY-NAME: Crystal
+
+  # Interval in seconds between network heartbeat status refreshes
+  REFRESH-SECONDS: 5
+
+  # Timeout in milliseconds for server ping status checks
+  TIMEOUT-MS: 1500
+
+  # Internal REST API HTTP endpoint for external monitoring
+  ENDPOINT:
+    # Enable HTTP status endpoint server (true / false)
+    ENABLED: false
+    # Host IP address to bind HTTP endpoint server
+    HOST: 0.0.0.0
+    # Port number for HTTP status endpoint
+    PORT: 8123
+    # Endpoint URI path
+    PATH: /status
+    # Secret authorization token for HTTP status queries
+    TOKEN: change-me
+
+  # Configuration for remote network servers to monitor
+  SERVERS:
+    crystal:
+      DISPLAY: Crystal
+      SOURCE:
+        TYPE: LOCAL
+
+# Maintenance mode behaviour (/maintenance on|off|status|setlobby)
+MAINTENANCE:
+  # Permission node that lets a player join while maintenance mode is active
+  BYPASS_PERMISSION: ULTIMATEDONUTSMP.ADMIN.MAINTENANCE.BYPASS
+
+  # Move players to another server through the proxy (true) or keep them on this one (false)
+  USE_PROXY: true
+
+  # Proxy server players are moved to while maintenance is active, used when USE_PROXY is true.
+  # Leave it empty when this server has no lobby to hand players to: maintenance then refuses
+  # the connection at login instead of letting players in and kicking them a moment later
+  LOBBY_SERVER: lobby
+
+  # World players are teleported to while maintenance is active, used when USE_PROXY is false.
+  # Falls back to the spawn location when that world is not loaded. Leave it empty when this
+  # server has nowhere to put players: maintenance then kicks everyone who is online and refuses
+  # the connection at login, so nobody is left standing in the world while the server is shut
+  LOBBY_WORLD: WORLD
+
+  # Countdown in seconds shown before players are sent back once the server returns
+  RECONNECT_DELAY_SECONDS: 5
+
+  # Everything maintenance says to players. Colour codes work in all of them
+  MESSAGES:
+    # Sent to everyone still online when /maintenance on runs
+    ENTERING: '&d[Maintenance] &7server is entering maintenance. Moving you to the lobby...'
+
+    # Sent to a player who joins during maintenance without the bypass permission
+    NOT_ALLOWED: '&d[Maintenance] &cthis server is currently in maintenance. Redirecting to lobby...'
+
+    # Sent instead to a player who joins holding the bypass permission
+    BYPASS_JOIN: '&d[Maintenance] &7you joined while maintenance mode is active.'
+
+    # Disconnect screen text, used when a proxy handoff fails and on every login refused
+    # because no lobby is set
+    KICK_FALLBACK: '&cThis server is in maintenance and no lobby is available.'
+
+    # Title shown while players wait to be sent back once the server returns
+    RECONNECTING_TITLE: '&a&lServer online'
+
+    # Subtitle under it. %seconds% is the time left on RECONNECT_DELAY_SECONDS
+    RECONNECTING_SUBTITLE: '&7Sending you back in %seconds% seconds...'
+
+  # How this server looks in the multiplayer list while maintenance mode is active
+  SERVER_LIST:
+    # Set to false to leave the server list entry alone and only gate the login
+    ENABLED: true
+
+    # The lines shown under the server name. The client draws the first two. %time% is the
+    # time left before maintenance lifts itself, written as 03:29, or 1:03:29 once more than an
+    # hour is left
+    LINES:
+    - '&cCurrently under maintenance'
+    - '&bCome back in: &d%time%'
+
+    # Used instead of LINES when maintenance was started with no duration, as in a plain
+    # /maintenance on, so the entry never shows a countdown with nothing to count down to
+    LINES_NO_TIMER:
+    - '&cCurrently under maintenance'
+    - '&7come back later'
+
+    # Text shown where the player count normally sits. The client draws it in red next to a
+    # broken connection icon, which is what makes the entry stand out in a long server list.
+    # Leave it empty to keep the real player count on show
+    VERSION_LABEL: '&cMaintenance'
+
+    # Lines shown when the player count is hovered. Leaving the list empty keeps the usual
+    # sample of online player names
+    HOVER:
+    - '&cCurrently under maintenance'

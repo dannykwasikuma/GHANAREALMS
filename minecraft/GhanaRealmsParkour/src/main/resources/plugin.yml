@@ -1,0 +1,24 @@
+name: GhanaRealmsParkour
+version: '${project.version}'
+main: com.ghanarealms.parkour.GhanaRealmsParkour
+api-version: '1.21'
+author: GhanaRealms
+description: Checkpoint-based parkour courses with timers and leaderboards for the GhanaRealms Lobby
+softdepend: [Vault]
+
+commands:
+  parkour:
+    aliases: [pk]
+    description: Start, leave, or view leaderboards for a parkour course
+    usage: /parkour <start|leave|top> <course>
+    permission: ghanarealmsparkour.use
+  parkouradmin:
+    description: Define parkour courses (admin)
+    usage: /parkouradmin <setstart|addcheckpoint|setfinish|create|reload> <course>
+    permission: ghanarealmsparkour.admin
+
+permissions:
+  ghanarealmsparkour.use:
+    default: true
+  ghanarealmsparkour.admin:
+    default: op

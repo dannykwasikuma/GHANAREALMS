@@ -1,0 +1,119 @@
+# ==============================================================================
+# GhanaRealmsAscension
+# ==============================================================================
+# Rank titles below are stylistic flavor drawing on well-known Akan/Ghanaian
+# words (Ɔkofo = warrior, Ohene = chief/king) - they're not a claim of precise
+# traditional rank structure, just naming in keeping with the rest of
+# GhanaRealms (Adinkra/Kente/Durbar/Golden Stool already used elsewhere).
+
+XP:
+  PER-MOB-KILL: 15
+  PER-PLAYER-KILL: 40
+  PER-GATE-CLEAR: 200
+  # XP required for level N = BASE * (N ^ CURVE-EXPONENT)
+  BASE: 50
+  CURVE-EXPONENT: 1.6
+  STAT-POINTS-PER-LEVEL: 2
+
+RANKS:
+  # LEVEL-AT which this title becomes your displayed rank
+  1:
+    TITLE: '&7Recruit'
+  10:
+    TITLE: '&fƆkofo &7(Warrior)'
+  25:
+    TITLE: '&aObarima &7(Brave One)'
+  40:
+    TITLE: "&6Chief's Guard"
+  60:
+    TITLE: "&6Ohene's Champion"
+  80:
+    TITLE: '&eGolden Stool Bearer'
+
+STATS:
+  # Each point in an attribute maps to a small, capped Bukkit AttributeModifier
+  # so this stays within vanilla combat balance rather than snowballing.
+  STRENGTH:
+    PER-POINT-DAMAGE: 0.15
+    MAX-POINTS: 50
+  VITALITY:
+    PER-POINT-HEALTH: 0.5
+    MAX-POINTS: 50
+  AGILITY:
+    PER-POINT-SPEED: 0.004
+    MAX-POINTS: 50
+
+GATES:
+  # A Gate is an instanced mob-wave trial. Players teleport to an arena
+  # (reuses the coordinates from the Arena zones folded into Survival),
+  # fight scripted waves, and are teleported back with XP + a chance at
+  # bonus loot on clear. Entirely original - no dungeon/instance content
+  # was found in any of the four audited repos to build from.
+  BRONZE-GATE:
+    DISPLAY-NAME: '&7Bronze Gate'
+    MIN-LEVEL: 1
+    ARENA-WORLD: GhanaRealms-Survival
+    ARENA-X: -8
+    ARENA-Y: 64
+    ARENA-Z: -40
+    WAVES:
+      - {ENTITY: ZOMBIE, COUNT: 5}
+      - {ENTITY: SKELETON, COUNT: 5}
+    XP-REWARD: 150
+  SILVER-GATE:
+    DISPLAY-NAME: '&fSilver Gate'
+    MIN-LEVEL: 15
+    ARENA-WORLD: GhanaRealms-Survival
+    ARENA-X: -8
+    ARENA-Y: 64
+    ARENA-Z: -40
+    WAVES:
+      - {ENTITY: ZOMBIE, COUNT: 8}
+      - {ENTITY: SPIDER, COUNT: 6}
+      - {ENTITY: SKELETON, COUNT: 8}
+    XP-REWARD: 400
+  GOLD-GATE:
+    DISPLAY-NAME: '&6Gold Gate'
+    MIN-LEVEL: 35
+    ARENA-WORLD: GhanaRealms-Survival
+    ARENA-X: -8
+    ARENA-Y: 64
+    ARENA-Z: -40
+    WAVES:
+      - {ENTITY: ZOMBIE, COUNT: 10}
+      - {ENTITY: SPIDER, COUNT: 10}
+      - {ENTITY: SKELETON, COUNT: 10}
+      - {ENTITY: WITCH, COUNT: 3}
+    XP-REWARD: 900
+
+MESSAGES:
+  LEVEL-UP: '&6&lLevel Up! &fYou are now level &e{level} &7({title}&7). +{points} stat points.'
+  LEVEL-UP-TITLE: '&6&l\u2605 ASCENSION \u2605'
+  LEVEL-UP-SUBTITLE: '&fLevel &e{level} &7- &f{title}'
+  AWAKENING-TITLE: '&e&lTHE CALLING'
+  AWAKENING-SUBTITLE: '&7The ancestors have marked you, {player}.'
+  RANK-VIEW:
+    - '&8\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510'
+    - '&8\u2502  &6&l{player}''s Ascension'
+    - '&8\u2502  &7Level: &f{level} &7({title}&7)'
+    - '&8\u2502  &7XP: &f{xp}&7/&f{nextLevelXp}'
+    - '&8\u2502  &7Unspent stat points: &e{points}'
+    - '&8\u2502  &7STR &f{str} &8\u2502 &7VIT &f{vit} &8\u2502 &7AGI &f{agi}'
+    - '&8\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518'
+  GATE-STARTED: '&aGate opened! Waves incoming - survive to clear it.'
+  GATE-OPENING-TITLE: '&6&lGATE OPENING'
+  GATE-OPENING-SUBTITLE: '&7{gate}'
+  GATE-WAVE-CLEARED: '&7Wave {wave}/{total} cleared.'
+  GATE-CLEARED: '&a&lGate cleared! &f+{xp} XP'
+  GATE-CLEARED-TITLE: '&a&lGATE CLEARED'
+  GATE-FAILED: '&c&lYou were defeated. The Gate closes.'
+  GATE-FAILED-TITLE: '&4&lGYE NYAME'
+  GATE-FAILED-SUBTITLE: '&7"Except for God" - you are spared. The Gate closes.'
+  GATE-LEVEL-TOO-LOW: '&cYou need to be level {required} to enter this Gate.'
+
+SOUNDS:
+  LEVEL-UP: ENTITY_PLAYER_LEVELUP
+  AWAKENING: ENTITY_ENDER_DRAGON_GROWL
+  GATE-OPEN: BLOCK_END_PORTAL_SPAWN
+  GATE-CLEAR: UI_TOAST_CHALLENGE_COMPLETE
+  GATE-FAIL: ENTITY_WITHER_HURT

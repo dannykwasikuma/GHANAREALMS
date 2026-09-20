@@ -1,0 +1,321 @@
+package com.bx.ultimateDonutSmp.listeners;
+
+import com.bx.ultimateDonutSmp.UltimateDonutSmp;
+import com.bx.ultimateDonutSmp.managers.SpawnManager;
+import com.bx.ultimateDonutSmp.models.PlayerData;
+import com.bx.ultimateDonutSmp.utils.ItemUtils;
+import com.bx.ultimateDonutSmp.utils.NightVisionUtils;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+public class PlayerRespawnListener implements Listener {
+
+    private final UltimateDonutSmp plugin;
+
+    public PlayerRespawnListener(UltimateDonutSmp plugin) {
+        this.plugin = plugin;
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        String deathWorldName = player.getWorld() == null ? null : player.getWorld().getName();
+        boolean respawnRtpAllowed = false;
+
+        boolean duelRespawnHandled = plugin.getDuelManager() != null
+                && plugin.getDuelManager().consumeRespawn(player, event);
+        boolean ffaRespawnHandled = !duelRespawnHandled
+                && plugin.getFfaManager() != null
+                && plugin.getFfaManager().consumeRespawn(player, event);
+
+        if (!duelRespawnHandled && !ffaRespawnHandled) {
+            Location pearlLocation = plugin.getEnderPearlManager() != null
+                    ? plugin.getEnderPearlManager().consumePendingTeleport(player.getUniqueId())
+                    : null;
+            if (pearlLocation != null) {
+                Location finalPearlLocation = pearlLocation.clone();
+                event.setRespawnLocation(finalPearlLocation);
+                boolean isStaffMode = plugin.getStaffModeManager().isInStaffMode(player.getUniqueId());
+
+                plugin.getSpigotScheduler().runGlobalLater(() -> {
+                    if (!player.isOnline()) {
+                        return;
+                    }
+                    plugin.getSpigotScheduler().teleport(player, finalPearlLocation).thenAccept(success -> {
+                        plugin.getSpigotScheduler().runEntity(player, () -> {
+                            if (player.isOnline()) {
+                                NightVisionUtils.restoreIfEnabled(plugin, player);
+                                if (!isStaffMode) {
+                                    scheduleChainmailKit(plugin, player, 0L);
+                                }
+                            }
+                        });
+                    });
+                }, 1L);
+                return;
+            }
+
+            boolean respawnOnBed = plugin.getConfigManager().getConfig().getBoolean("SETTINGS.RESPAWN-ON-BED", false);
+            respawnRtpAllowed = !respawnOnBed || !isRespawningAtBedOrAnchor(event, player);
+            if (respawnRtpAllowed) {
+                Location respawnLocation = plugin.getSpawnManager().resolveCommandDestination(SpawnManager.AreaType.SPAWN);
+                if (respawnLocation == null) {
+                    respawnLocation = plugin.getSpawnManager().getSpawnLocation();
+                }
+                if (respawnLocation == null) {
+                    respawnLocation = plugin.getSpawnManager().makeSafeDestination(event.getRespawnLocation());
+                }
+                if (respawnLocation != null) {
+                    Location finalRespawnLocation = respawnLocation.clone();
+                    event.setRespawnLocation(finalRespawnLocation);
+                    boolean isStaffMode = plugin.getStaffModeManager().isInStaffMode(player.getUniqueId());
+
+                    plugin.getSpigotScheduler().runGlobalLater(() -> {
+                        if (!player.isOnline()) {
+                            return;
+                        }
+                        plugin.getSpigotScheduler().teleport(player, finalRespawnLocation).thenAccept(success -> {
+                            plugin.getSpigotScheduler().runEntity(player, () -> {
+                                if (player.isOnline()) {
+                                    NightVisionUtils.restoreIfEnabled(plugin, player);
+                                    if (!isStaffMode) {
+                                        scheduleChainmailKit(plugin, player, 0L);
+                                    }
+                                    startRespawnRtp(player, deathWorldName);
+                                }
+                            });
+                        });
+                    }, 1L);
+                    return;
+                }
+            }
+        }
+
+        boolean respawnRtpOnFallback = respawnRtpAllowed;
+        plugin.getStaffModeManager().handleRespawn(player);
+        plugin.getSpigotScheduler().runGlobalLater(() -> {
+            if (player.isOnline()) {
+                plugin.getSpigotScheduler().runEntity(player, () -> {
+                    if (player.isOnline()) {
+                        NightVisionUtils.restoreIfEnabled(plugin, player);
+                        if (respawnRtpOnFallback) {
+                            startRespawnRtp(player, deathWorldName);
+                        }
+                    }
+                });
+            }
+        }, 2L);
+
+        if (!ffaRespawnHandled) {
+            if (plugin.getStaffModeManager().isInStaffMode(player.getUniqueId())) {
+                return;
+            }
+            scheduleChainmailKit(plugin, player, 2L);
+        }
+    }
+
+    private void startRespawnRtp(Player player, String deathWorldName) {
+        if (plugin.getRespawnRtpManager() == null) {
+            return;
+        }
+        plugin.getRespawnRtpManager().handleRespawn(player, deathWorldName);
+    }
+
+    private boolean shouldSnapToRespawnLocation(Location current, Location expected) {
+        if (current == null || expected == null || current.getWorld() == null || expected.getWorld() == null) {
+            return false;
+        }
+        if (!current.getWorld().equals(expected.getWorld())) {
+            return true;
+        }
+        return current.distanceSquared(expected) > 0.36D;
+    }
+
+    private boolean isRespawningAtBedOrAnchor(PlayerRespawnEvent event, Player player) {
+        if (event.isBedSpawn() || event.isAnchorSpawn()) {
+            return true;
+        }
+        Location respawnLoc = event.getRespawnLocation();
+        if (respawnLoc == null) {
+            return false;
+        }
+        Location bedLoc = player.getBedSpawnLocation();
+        if (bedLoc == null) {
+            return false;
+        }
+        return respawnLoc.getWorld() != null &&
+               respawnLoc.getWorld().equals(bedLoc.getWorld()) &&
+               respawnLoc.distanceSquared(bedLoc) < 9.0D;
+    }
+
+    public static void scheduleChainmailKit(UltimateDonutSmp plugin, Player player, long delayTicks) {
+        if (plugin == null || player == null) {
+            return;
+        }
+
+        boolean chainmailEnabled = plugin.getConfigManager().getConfig()
+                .getBoolean("SETTINGS.CHAINMAIL-ON-RESPAWN", true);
+        PlayerData data = plugin.getPlayerDataManager().get(player);
+        boolean playerEnabled = data == null || data.isChainmailOnRespawnEnabled();
+        if (!chainmailEnabled || !playerEnabled) {
+            return;
+        }
+
+        plugin.getSpigotScheduler().runEntityLater(player, () -> {
+            if (player.isOnline()) {
+                giveChainmailKit(plugin, player);
+            }
+        }, Math.max(1L, delayTicks));
+    }
+
+    private static void giveChainmailKit(UltimateDonutSmp plugin, Player player) {
+        List<?> itemList = plugin.getConfigManager().getConfig()
+                .getList("SETTINGS.CHAINMAIL-RESPAWN-ITEMS");
+        Set<Material> grantedMaterials = new HashSet<>();
+        if (itemList != null) {
+            for (Object obj : itemList) {
+                Material mat = Material.STONE;
+                int amount = 1;
+                String name = null;
+
+                if (obj instanceof ConfigurationSection section) {
+                    mat = ItemUtils.parseMaterial(section.getString("MATERIAL", "STONE"));
+                    amount = section.getInt("AMOUNT", 1);
+                    name = section.getString("NAME");
+                } else if (obj instanceof java.util.Map<?, ?> map) {
+                    Object matObj = map.get("MATERIAL");
+                    if (matObj != null) {
+                        mat = ItemUtils.parseMaterial(matObj.toString());
+                    }
+                    Object amtObj = map.get("AMOUNT");
+                    if (amtObj != null) {
+                        try {
+                            amount = Integer.parseInt(amtObj.toString());
+                        } catch (NumberFormatException ignored) {}
+                    }
+                    Object nameObj = map.get("NAME");
+                    if (nameObj != null) {
+                        name = nameObj.toString();
+                    }
+                } else {
+                    continue;
+                }
+
+                ItemStack item;
+                if (name != null) {
+                    item = ItemUtils.createItem(mat, name);
+                    item.setAmount(amount);
+                } else {
+                    item = new ItemStack(mat, amount);
+                }
+
+                grantedMaterials.add(mat);
+                giveRespawnItem(player, item);
+            }
+        } else {
+            ensureDefaultItem(player, grantedMaterials, Material.CHAINMAIL_HELMET);
+            ensureDefaultItem(player, grantedMaterials, Material.CHAINMAIL_CHESTPLATE);
+            ensureDefaultItem(player, grantedMaterials, Material.CHAINMAIL_LEGGINGS);
+            ensureDefaultItem(player, grantedMaterials, Material.CHAINMAIL_BOOTS);
+            ensureDefaultItem(player, grantedMaterials, Material.STONE_SWORD);
+            ensureDefaultItem(player, grantedMaterials, Material.STONE_PICKAXE);
+            ensureDefaultItem(player, grantedMaterials, Material.STONE_AXE);
+            ensureDefaultItem(player, grantedMaterials, Material.STONE_SHOVEL);
+        }
+
+        player.updateInventory();
+    }
+
+    private static void ensureDefaultItem(Player player, Set<Material> grantedMaterials, Material material) {
+        if (grantedMaterials.contains(material)) {
+            return;
+        }
+
+        giveRespawnItem(player, new ItemStack(material));
+    }
+
+    private static void giveRespawnItem(Player player, ItemStack item) {
+        if (equipArmorIfApplicable(player, item)) {
+            return;
+        }
+
+        placeInPreferredSlot(player, item);
+    }
+
+    private static boolean equipArmorIfApplicable(Player player, ItemStack item) {
+        PlayerInventory inventory = player.getInventory();
+        String matName = item.getType().name();
+
+        if (matName.endsWith("_HELMET")) {
+            if (isEmpty(inventory.getHelmet())) {
+                inventory.setHelmet(item);
+            } else {
+                inventory.addItem(item);
+            }
+            return true;
+        }
+        if (matName.endsWith("_CHESTPLATE")) {
+            if (isEmpty(inventory.getChestplate())) {
+                inventory.setChestplate(item);
+            } else {
+                inventory.addItem(item);
+            }
+            return true;
+        }
+        if (matName.endsWith("_LEGGINGS")) {
+            if (isEmpty(inventory.getLeggings())) {
+                inventory.setLeggings(item);
+            } else {
+                inventory.addItem(item);
+            }
+            return true;
+        }
+        if (matName.endsWith("_BOOTS")) {
+            if (isEmpty(inventory.getBoots())) {
+                inventory.setBoots(item);
+            } else {
+                inventory.addItem(item);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static void placeInPreferredSlot(Player player, ItemStack item) {
+        PlayerInventory inventory = player.getInventory();
+        int preferredSlot = getPreferredHotbarSlot(item.getType());
+
+        if (preferredSlot >= 0 && isEmpty(inventory.getItem(preferredSlot))) {
+            inventory.setItem(preferredSlot, item);
+            return;
+        }
+
+        inventory.addItem(item);
+    }
+
+    private static int getPreferredHotbarSlot(Material material) {
+        return switch (material) {
+            case STONE_SWORD -> 0;
+            case STONE_PICKAXE -> 1;
+            case STONE_AXE -> 2;
+            case STONE_SHOVEL -> 3;
+            default -> -1;
+        };
+    }
+
+    private static boolean isEmpty(ItemStack item) {
+        return item == null || item.getType().isAir();
+    }
+}

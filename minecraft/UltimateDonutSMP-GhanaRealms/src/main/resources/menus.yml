@@ -1,0 +1,2396 @@
+GLOBAL:
+  PAGE-MENU:
+    MATERIAL: ARROW
+    NEXT-BUTTON: '&aNEXT'
+    BACK-BUTTON: '&aBACK'
+    FIRST-PAGE-BUTTON: '&aFIRST PAGE'
+    LAST-PAGE-BUTTON: '&aLAST PAGE'
+    NEXT-LORE:
+    - '&fClick to go to the next page'
+    BACK-LORE:
+    - '&fClick to go to the previous page'
+    FIRST-PAGE-LORE:
+    - '&fJump to the first page'
+    LAST-PAGE-LORE:
+    - '&fJump to the last page'
+TEAM-MENUS:
+  TEAM:
+    TITLE: '&8Team'
+    SIZE: 54
+    MAX-ITEMS-PER-PAGE: 45
+    PLAYER-BUTTON:
+      ONLINE-SYMBOL: "&a■"
+      OFFLINE-SYMBOL: "&4■"
+      LORE: '&fClick to edit'
+    SEARCH-BUTTON:
+      TITLE: '&#6BF18DSearch'
+      MATERIAL: OAK_SIGN
+      SLOT: 45
+      LORE:
+      - '&fSearch for team members'
+      - '&cIn development.'
+    SORT-BUTTON:
+      TITLE: '&aSort'
+      MATERIAL: HOPPER
+      SLOT: 46
+      SELECTED-PREFIX: '&a'
+      UNSELECTED-PREFIX: '&f'
+      SYMBOL: "▪"
+    REFRESH-BUTTON:
+      TITLE: '&#6BF18DTeam {team_name}'
+      MATERIAL: IRON_HELMET
+      SLOT: 49
+      LORE:
+      - '&fClick to refresh'
+      - '&7Add up to {max_members} members'
+    HOME-BUTTON:
+      TITLE: '&#6BF18DTeam Home'
+      MATERIAL: WHITE_BANNER
+      SLOT: 52
+      HOME-LORE: '&fClick to teleport to your team''s home'
+      NO-HOME-LORE: '&fSet the team home with /home'
+    PVP-BUTTON:
+      TITLE: '&#6BF18DPVP'
+      MATERIAL: IRON_SWORD
+      SLOT: 53
+      ON-STATE: '&a&lON'
+      OFF-STATE: '&c&lOFF'
+      LORE: '&fCurrently: {state}'
+    MESSAGES:
+      NOT-IN-TEAM: '&cYou are not part of the team.'
+      NO-PERMISSION: '&cYou don''t have permissions to do this.'
+      CANT-EDIT-SELF: '&cYou can''t do this yourself!'
+  TEAM-INFO:
+    TITLE: '&8Team {team_name}'
+    SIZE: 54
+    MAX-ITEMS-PER-PAGE: 45
+    PLAYER-BUTTON:
+      ONLINE-SYMBOL: "&a■"
+      OFFLINE-SYMBOL: "&4■"
+      LEADER-LORE: '&6Leader'
+    SUMMARY-BUTTON:
+      TITLE: '&#6BF18DTeam {team_name}'
+      MATERIAL: IRON_HELMET
+      SLOT: 49
+      ON-STATE: '&a&lON'
+      OFF-STATE: '&c&lOFF'
+      LORE:
+      - '&7Leader: &f{leader}'
+      - '&7Members: &f{members}&7/&f{max_members}'
+      - '&7PvP: {state}'
+    PAGE-BUTTON:
+      TITLE: '&fPage {page}&7/&f{total_pages}'
+      MATERIAL: PAPER
+      SLOT: 50
+      LORE:
+      - '&7Browse team members.'
+  TEAM-EDIT-MEMBER:
+    TITLE: '&8Edit {player}'
+    SIZE: 27
+    PLACEHOLDER: false
+    PLACEHOLDER-MATERIAL: BLACK_STAINED_GLASS_PANE
+    EDIT-HOME-BUTTON:
+      TITLE: '&#6BF18DEdit Home'
+      MATERIAL: WHITE_BANNER
+      SLOT: 10
+      ON-STATE: '&a&lON'
+      OFF-STATE: '&c&lOFF'
+      LORE:
+      - '&fLet {player} set and remove the team home'
+      - '&fCurrently: {state}'
+    KICK-BUTTON:
+      TITLE: '&#6BF18DKick'
+      MATERIAL: OAK_DOOR
+      SLOT: 11
+      LORE:
+      - '&fClick to kick {player}'
+    MANAGE-TEAMMATES-BUTTON:
+      TITLE: '&#6BF18DManage Teammates'
+      MATERIAL: IRON_HELMET
+      SLOT: 12
+      ON-STATE: '&a&lON'
+      OFF-STATE: '&c&lOFF'
+      LORE:
+      - '&fLet {player} invite and kick teammates'
+      - '&fCurrently: {state}'
+    PVP-BUTTON:
+      TITLE: '&#6BF18DPVP'
+      MATERIAL: IRON_SWORD
+      SLOT: 13
+      ON-STATE: '&a&lON'
+      OFF-STATE: '&c&lOFF'
+      LORE:
+      - '&fLet {player} turn on and off team pvp'
+      - '&fCurrently: {state}'
+    VISIT-HOME-BUTTON:
+      TITLE: '&#6BF18DVisit Team Home'
+      MATERIAL: ENDER_PEARL
+      SLOT: 14
+      ON-STATE: '&a&lON'
+      OFF-STATE: '&c&lOFF'
+      LORE:
+      - '&fLet {player} go to team home'
+      - '&fCurrently: {state}'
+    TEAM-CHAT-BUTTON:
+      TITLE: '&#6BF18DTeam Chat'
+      MATERIAL: FEATHER
+      SLOT: 15
+      ON-STATE: '&a&lON'
+      OFF-STATE: '&c&lOFF'
+      LORE:
+      - '&fLet {player} speak in chat'
+      - '&fCurrently: {state}'
+    BACK-BUTTON:
+      TITLE: '&cBack'
+      MATERIAL: RED_STAINED_GLASS_PANE
+      SLOT: 18
+      LORE:
+      - '&fClick to return'
+  TEAM-KICK-MEMBER:
+    PLACEHOLDER: true
+    TITLE: '&8Confirm Kicking {player}'
+    SIZE: 27
+    CANCEL-BUTTON:
+      TITLE: '&#FC0000Cancel'
+      MATERIAL: RED_STAINED_GLASS_PANE
+      SLOT: 11
+      LORE:
+      - '&fClick to cancel'
+    CONFIRM-BUTTON:
+      TITLE: '&#00FC00Confirm'
+      MATERIAL: LIME_STAINED_GLASS_PANE
+      SLOT: 15
+      LORE:
+      - '&fClick to kick {player}'
+  TEAM-DISBAND:
+    PLACEHOLDER: true
+    TITLE: '&8Confirm Disbanding Team'
+    SIZE: 27
+    CANCEL-BUTTON:
+      TITLE: '&#FC0000Cancel'
+      MATERIAL: RED_STAINED_GLASS_PANE
+      SLOT: 11
+      LORE:
+      - '&fClick to cancel'
+    CONFIRM-BUTTON:
+      TITLE: '&#00FC00Confirm'
+      MATERIAL: LIME_STAINED_GLASS_PANE
+      SLOT: 15
+      LORE:
+      - '&fClick to confirm'
+HOME-MENU:
+  TITLE: '&8Homes'
+  SIZE: 36
+  TELEPORT-USED-MATERIAL: LIGHT_BLUE_BED
+  TELEPORT-NO-USED-MATERIAL: LIGHT_GRAY_BED
+  TELEPORT-NO-PERMISSION-MATERIAL: RED_BED
+  CREATE-USED-MATERIAL: BLUE_DYE
+  CREATE-NO-USED-MATERIAL: GRAY_DYE
+  CREATE-NO-PERMISSION-MATERIAL: RED_DYE
+  TEAM_HOME:
+    TELEPORT:
+      MATERIALS:
+        NO_TEAM: RED_BANNER
+        NO_HOME: WHITE_BANNER
+        HAS_HOME: WHITE_BANNER
+      DISPLAY_NAME:
+        NO_TEAM: '&cTeam Home'
+        NO_HOME: '&fTeam Home'
+        HAS_HOME: '&bTeam Home'
+      LORE:
+        NO_TEAM:
+        - '&7You are not in a team.'
+        NO_HOME:
+        - '&7Click to create your team home.'
+        HAS_HOME:
+        - '&7World: &f{world}'
+        - '&aLeft-click to teleport'
+    SAVE:
+      MATERIALS:
+        NO_TEAM: RED_DYE
+        NO_HOME: GRAY_DYE
+        HAS_HOME: BLUE_DYE
+      DISPLAY_NAME:
+        NO_TEAM: '&cTeam Home'
+        NO_HOME: '&7Set Team Home'
+        HAS_HOME: '&bManage Team Home'
+      LORE:
+        NO_TEAM:
+        - '&7You are not in a team.'
+        NO_HOME:
+        - '&7Left-click to save your team home.'
+        HAS_HOME:
+        - '&bLeft-click to update the team home'
+        - '&cRight-click to delete'
+  TELEPORT:
+    HOME-1:
+      DISPLAY-NAME:
+        NO-USED: '&7{slot}'
+        USED: '&b{name}'
+        NO-PERMISSION: '&cLocked'
+      LORE:
+        NO-USED:
+        - '&7Click to create a home.'
+        USED:
+        - '&7World: &f{world}'
+        - '&aLeft-click to teleport'
+        NO-PERMISSION:
+        - '&7You need a higher rank for this home.'
+    HOME-2:
+      DISPLAY-NAME:
+        NO-USED: '&7{slot}'
+        USED: '&b{name}'
+        NO-PERMISSION: '&cLocked'
+      LORE:
+        NO-USED:
+        - '&7Click to create a home.'
+        USED:
+        - '&7World: &f{world}'
+        - '&aLeft-click to teleport'
+        NO-PERMISSION:
+        - '&7You need a higher rank for this home.'
+    HOME-3:
+      DISPLAY-NAME:
+        NO-USED: '&7{slot}'
+        USED: '&b{name}'
+        NO-PERMISSION: '&cLocked'
+      LORE:
+        NO-USED:
+        - '&7Click to create a home.'
+        USED:
+        - '&7World: &f{world}'
+        - '&aLeft-click to teleport'
+        NO-PERMISSION:
+        - '&7You need a higher rank for this home.'
+    HOME-4:
+      DISPLAY-NAME:
+        NO-USED: '&7{slot}'
+        USED: '&b{name}'
+        NO-PERMISSION: '&cLocked'
+      LORE:
+        NO-USED:
+        - '&7Click to create a home.'
+        USED:
+        - '&7World: &f{world}'
+        - '&aLeft-click to teleport'
+        NO-PERMISSION:
+        - '&7You need a higher rank for this home.'
+    HOME-5:
+      DISPLAY-NAME:
+        NO-USED: '&7{slot}'
+        USED: '&b{name}'
+        NO-PERMISSION: '&cLocked'
+      LORE:
+        NO-USED:
+        - '&7Click to create a home.'
+        USED:
+        - '&7World: &f{world}'
+        - '&aLeft-click to teleport'
+        NO-PERMISSION:
+        - '&7You need a higher rank for this home.'
+  CREATE:
+    HOME-1:
+      DISPLAY-NAME:
+        NO-USED: '&7{slot}'
+        USED: '&b{name}'
+        NO-PERMISSION: '&cLocked'
+      LORE:
+        NO-USED:
+        - '&7Click to name and create a home.'
+        USED:
+        - '&eLeft-click to rename this home'
+        - '&cRight-click to delete'
+        NO-PERMISSION:
+        - '&7You need a higher rank for this home.'
+    HOME-2:
+      DISPLAY-NAME:
+        NO-USED: '&7{slot}'
+        USED: '&b{name}'
+        NO-PERMISSION: '&cLocked'
+      LORE:
+        NO-USED:
+        - '&7Click to name and create a home.'
+        USED:
+        - '&eLeft-click to rename this home'
+        - '&cRight-click to delete'
+        NO-PERMISSION:
+        - '&7You need a higher rank for this home.'
+    HOME-3:
+      DISPLAY-NAME:
+        NO-USED: '&7{slot}'
+        USED: '&b{name}'
+        NO-PERMISSION: '&cLocked'
+      LORE:
+        NO-USED:
+        - '&7Click to name and create a home.'
+        USED:
+        - '&eLeft-click to rename this home'
+        - '&cRight-click to delete'
+        NO-PERMISSION:
+        - '&7You need a higher rank for this home.'
+    HOME-4:
+      DISPLAY-NAME:
+        NO-USED: '&7{slot}'
+        USED: '&b{name}'
+        NO-PERMISSION: '&cLocked'
+      LORE:
+        NO-USED:
+        - '&7Click to name and create a home.'
+        USED:
+        - '&eLeft-click to rename this home'
+        - '&cRight-click to delete'
+        NO-PERMISSION:
+        - '&7You need a higher rank for this home.'
+    HOME-5:
+      DISPLAY-NAME:
+        NO-USED: '&7{slot}'
+        USED: '&b{name}'
+        NO-PERMISSION: '&cLocked'
+      LORE:
+        NO-USED:
+        - '&7Click to name and create a home.'
+        USED:
+        - '&eLeft-click to rename this home'
+        - '&cRight-click to delete'
+        NO-PERMISSION:
+        - '&7You need a higher rank for this home.'
+MEDIA-MENU:
+  TITLE: '&8Media Rank'
+  SIZE: 27
+  MEDIA-BUTTON:
+    DISPLAY-NAME: '&dMedia Rank'
+    MATERIAL: PINK_DYE
+    SLOT: 13
+    LORE:
+    - '&dReQuirements: (only one needed)'
+    - '&d- &f25 average viewers on Stream'
+    - '&d- &f5k views on a YouTube Video'
+    - '&d- &f25k views on a TikTok'
+    - '&d- &f50k views on YouTube Short'
+    - ''
+    - '&dReminders:'
+    - '&8- &7Must have the IP on screen'
+    - '&8- &7Must be from the new season'
+    - '&8- &7Create ticket in discord for the rank'
+    - '&8- &7It lasts 90 days and has all top ranks perks'
+    - ''
+RANKS-MENU:
+  TITLE: '&8Ranks'
+  SIZE: 27
+  # Every button takes an optional HEAD-TEXTURE, used when its MATERIAL is PLAYER_HEAD. It accepts a
+  # skin url or a base64 texture value. Uncomment the line inside a button to give that rank its own
+  # head; leaving it commented renders a plain player head.
+  BUTTONS:
+    DEFAULT:
+      MATERIAL: PLAYER_HEAD
+      SLOT: 11
+      DISPLAY-NAME: '&fDefault'
+      LORE:
+      - '&73 Homes'
+      - '&718 Auction Slots'
+      - '&718 Order Slots'
+      # HEAD-TEXTURE: 'https://textures.minecraft.net/texture/<texture id>'
+      COMMAND: ''
+    DONUT_PLUS:
+      MATERIAL: PLAYER_HEAD
+      SLOT: 13
+      DISPLAY-NAME: '&fDonut&#00A4FC+'
+      LORE:
+      - '&79 Homes'
+      - '&745 Auction Slots'
+      - '&745 Order Slots'
+      # HEAD-TEXTURE: 'https://textures.minecraft.net/texture/<texture id>'
+      COMMAND: ''
+    DONUT_PLUS_PLUS:
+      MATERIAL: PLAYER_HEAD
+      SLOT: 14
+      DISPLAY-NAME: '&fDonut&#00A4FC++'
+      LORE:
+      - '&727 Homes'
+      - '&790 Auction Slots'
+      - '&790 Order Slots'
+      # HEAD-TEXTURE: 'https://textures.minecraft.net/texture/<texture id>'
+      COMMAND: ''
+    DONUT_PLUS_PLUS_PLUS:
+      MATERIAL: PLAYER_HEAD
+      SLOT: 15
+      DISPLAY-NAME: '&fDonut&#00A4FC+++'
+      LORE:
+      - '&790 Homes'
+      - '&790 Auction Slots'
+      - '&790 Order Slots'
+      # HEAD-TEXTURE: 'https://textures.minecraft.net/texture/<texture id>'
+      COMMAND: ''
+STATS-MENU:
+  TITLE: '&8{username} Stats'
+  SIZE: 36
+  BUTTONS:
+    MONEY:
+      DISPLAY-NAME: '&#6BF18DMoney'
+      MATERIAL: EMERALD
+      SLOT: 10
+      LORE:
+      - '&7{value}'
+    SHARDS:
+      DISPLAY-NAME: '&#6BF18DShards'
+      MATERIAL: AMETHYST_SHARD
+      SLOT: 11
+      LORE:
+      - '&7{value}'
+    KILLS:
+      DISPLAY-NAME: '&#6BF18DKills'
+      MATERIAL: DIAMOND_SWORD
+      SLOT: 12
+      LORE:
+      - '&7{value}'
+    DEATHS:
+      DISPLAY-NAME: '&#6BF18DDeaths'
+      MATERIAL: SKELETON_SKULL
+      SLOT: 13
+      LORE:
+      - '&7{value}'
+    PLAYTIME:
+      DISPLAY-NAME: '&#6BF18DPlaytime'
+      MATERIAL: CLOCK
+      SLOT: 14
+      LORE:
+      - '&7{value}'
+    BLOCKS_PLACED:
+      DISPLAY-NAME: '&#6BF18DBlocks Placed'
+      MATERIAL: STONE
+      SLOT: 15
+      LORE:
+      - '&7{value}'
+    BLOCKS_BROKEN:
+      DISPLAY-NAME: '&#6BF18DBlocks Broken'
+      MATERIAL: COBBLESTONE
+      SLOT: 16
+      LORE:
+      - '&7{value}'
+    MOBS_KILLED:
+      DISPLAY-NAME: '&#6BF18DMobs Killed'
+      MATERIAL: ZOMBIE_HEAD
+      SLOT: 19
+      LORE:
+      - '&7{value}'
+    KILL_STREAK:
+      DISPLAY-NAME: '&#6BF18DKill Streak'
+      MATERIAL: DIAMOND_AXE
+      SLOT: 20
+      LORE:
+      - '&7{value}'
+    HIGHEST_KILL_STREAK:
+      DISPLAY-NAME: '&#6BF18DHighest Kill Streak'
+      MATERIAL: NETHERITE_SWORD
+      SLOT: 21
+      LORE:
+      - '&7{value}'
+    MONEY_SPENT:
+      DISPLAY-NAME: '&#6BF18DMoney Spent On Shop'
+      MATERIAL: GOLD_NUGGET
+      SLOT: 22
+      LORE:
+      - '&7{value}'
+    MONEY_MADE:
+      DISPLAY-NAME: '&#6BF18DMoney Made On /Sell'
+      MATERIAL: IRON_NUGGET
+      SLOT: 23
+      LORE:
+      - '&7{value}'
+SETTINGS-MENU:
+  TITLE: '&8Settings'
+  SIZE: 54
+  # Feedback messages sent in chat when players change settings in /settings:
+  # Placeholders available:
+  #   {setting}         Setting label or button FEEDBACK-NAME / clean DISPLAY-NAME
+  #   {setting_display} Setting button DISPLAY-NAME preserving colors
+  #   {state}           Enabled/Disabled state or the selected choice text
+  #   {choice}          Selected choice text (for three-choice settings)
+  # Individual buttons under BUTTONS can also override:
+  #   FEEDBACK-NAME: <custom setting label in chat>
+  #   FEEDBACK-MESSAGE: <custom message template for this button>
+  FEEDBACK:
+    TOGGLE-MESSAGE: '&7{setting} is now {state}&7.'
+    CHOICE-MESSAGE: '&7{setting} is now set to {choice}&7.'
+    STATE-ENABLED: '&aEnabled'
+    STATE-DISABLED: '&cDisabled'
+    CHOICE-OFF-TEXT: '&cOff'
+    CHOICE-ANYONE-TEXT: '&aAnyone'
+    CHOICE-FRIENDS-FOLLOWED-TEXT: '&dFriends/Followed'
+  BUTTONS:
+    # Buttons are grouped a row at a time: chat and messages on the first row,
+    # alerts on the second, gameplay and display on the third, who may reach you on
+    # the fourth, the scoreboard on the fifth, and the world around you on the last.
+    # Every setting below accepts two optional keys:
+    #   DEFAULT: <value>  Starting value for players who never touched the setting.
+    #                     On/off buttons take true or false. The privacy buttons
+    #                     (PRIVATE_MESSAGES, TPA_REQUESTS, TPA_HERE_REQUESTS, PAYMENTS)
+    #                     take ANYONE, FRIENDS_FOLLOWED or OFF. DEATH_MESSAGES and
+    #                     JOIN_LEAVE_MESSAGES are on or off: both feeds are server
+    #                     wide, so those buttons only mute them.
+    #                     true/false also work as shortcuts.
+    #   ENABLED: false    Removes the option from /settings and pins every player to the
+    #                     DEFAULT above. Use this instead of deleting the block - deleted
+    #                     blocks are restored from the bundled defaults on the next start.
+    # Example, hide advancement messages and keep them off for everyone:
+    # ADVANCEMENT_MESSAGES:
+    #   DEFAULT: OFF
+    #   ENABLED: false
+    # Custom redirect buttons can also be added here:
+    # EXTERNAL_FLY:
+    #   DISPLAY-NAME: '&bFlight Mode'
+    #   MATERIAL: FEATHER
+    #   SLOT: 25
+    #   COMMAND: '[player] /fly'
+    #   STATUS-PLACEHOLDER: '%cmi_user_flying%'
+    #   LORE:
+    #   - '&7Toggle flight via external plugin'
+    #   - '&fCurrently: {status}'
+    # Row 1 - chat and messages
+    PUBLIC_CHAT:
+      DISPLAY-NAME: '&#6BF18DPublic Chat'
+      MATERIAL: OAK_SIGN
+      SLOT: 0
+      LORE:
+      - '&7Receive public chat messages'
+      - '&fCurrently: {status}'
+    PRIVATE_MESSAGES:
+      DISPLAY-NAME: '&#6BF18DPrivate Messages'
+      MATERIAL: DARK_OAK_SIGN
+      SLOT: 1
+      LORE:
+      - '&7Private messages privacy settings'
+      - '&fCurrently: {status}'
+    SERVER_BROADCASTS:
+      DISPLAY-NAME: '&#6BF18DServer Broadcasts'
+      MATERIAL: WARPED_SIGN
+      SLOT: 2
+      LORE:
+      - '&7Receive server broadcasts'
+      - '&fCurrently: {status}'
+    HOTBAR_MESSAGES:
+      DISPLAY-NAME: '&#6BF18DHotbar Messages'
+      MATERIAL: CRIMSON_SIGN
+      SLOT: 3
+      LORE:
+      - '&7Show action bar status notifications'
+      - '&fCurrently: {status}'
+    DEATH_MESSAGES:
+      DISPLAY-NAME: '&#6BF18DDeath Messages'
+      MATERIAL: SPRUCE_SIGN
+      SLOT: 4
+      LORE:
+      - '&7Show death message notifications'
+      - '&fCurrently: {status}'
+    ADVANCEMENT_MESSAGES:
+      DISPLAY-NAME: '&#6BF18DAdvancement Messages'
+      MATERIAL: BIRCH_SIGN
+      SLOT: 5
+      LORE:
+      - '&7Show advancement achievement notifications'
+      - '&fCurrently: {status}'
+    JOIN_LEAVE_MESSAGES:
+      DISPLAY-NAME: '&#6BF18DJoin/Leave Messages'
+      MATERIAL: JUNGLE_SIGN
+      SLOT: 6
+      LORE:
+      - '&7Show join and leave notifications'
+      - '&fCurrently: {status}'
+    TEAM_CHAT_VISIBILITY:
+      DISPLAY-NAME: '&#6BF18DTeam Chat Visibility'
+      MATERIAL: MANGROVE_SIGN
+      SLOT: 7
+      LORE:
+      - '&7Show team chat in main chat'
+      - '&fCurrently: {status}'
+    AMETHYST_BREAK_MESSAGES:
+      DISPLAY-NAME: '&#6BF18DAmethyst Break Messages'
+      MATERIAL: CHERRY_SIGN
+      SLOT: 8
+      LORE:
+      - '&7Show message when amethyst cluster breaks'
+      - '&fCurrently: {status}'
+    # Row 2 - alerts
+    PAY_ALERTS:
+      DISPLAY-NAME: '&#6BF18DPay Alerts'
+      MATERIAL: GOLD_NUGGET
+      SLOT: 9
+      LORE:
+      - '&7Receive pay alerts'
+      - '&fCurrently: {status}'
+    TELEPORT_ALERTS:
+      DISPLAY-NAME: '&#6BF18DTeleport Alerts'
+      MATERIAL: ENDER_PEARL
+      SLOT: 10
+      LORE:
+      - '&7Sound and message alerts for TPA'
+      - '&fCurrently: {status}'
+    BOUNTY_ALERTS:
+      DISPLAY-NAME: '&#6BF18DBounty Alerts'
+      MATERIAL: BAMBOO_SIGN
+      SLOT: 11
+      LORE:
+      - '&7Notify when bounties are set/claimed'
+      - '&fCurrently: {status}'
+    AUCTION_NOTIFICATIONS:
+      DISPLAY-NAME: '&#6BF18DAuction Alerts'
+      MATERIAL: ACACIA_SIGN
+      SLOT: 12
+      LORE:
+      - '&7Notify when items are bought/sold'
+      - '&fCurrently: {status}'
+    ORDER_NOTIFICATIONS:
+      DISPLAY-NAME: '&#6BF18DOrder Alerts'
+      MATERIAL: MAP
+      SLOT: 13
+      LORE:
+      - '&7Notify when order transactions occur'
+      - '&fCurrently: {status}'
+    NOTIFICATION_SOUNDS:
+      DISPLAY-NAME: '&#6BF18DNotification Sounds'
+      MATERIAL: NOTE_BLOCK
+      SLOT: 14
+      LORE:
+      - '&7Play notification sounds'
+      - '&fCurrently: {status}'
+    FOLLOW_ALERT_SETTINGS:
+      DISPLAY-NAME: '&#6BF18DFollow Alerts'
+      MATERIAL: PLAYER_HEAD
+      SLOT: 15
+      LORE:
+      - '&7Notify when players follow you'
+      - '&fCurrently: {status}'
+    KEY_ALL_NOTIFICATIONS:
+      DISPLAY-NAME: '&#6BF18DKey All Notifications'
+      MATERIAL: TRIPWIRE_HOOK
+      SLOT: 16
+      LORE:
+      - '&7Show key-all event notifications'
+      - '&fCurrently: {status}'
+    RTP_COORDINATES:
+      DISPLAY-NAME: '&#6BF18DRTP Coordinates'
+      MATERIAL: COMPASS
+      SLOT: 17
+      LORE:
+      - '&7Show the coordinates /rtp drops you at'
+      - '&fCurrently: {status}'
+    # Row 3 - gameplay and display
+    FAST_CRYSTALS:
+      DISPLAY-NAME: '&#6BF18DFast Crystals'
+      MATERIAL: END_CRYSTAL
+      SLOT: 18
+      LORE:
+      - '&7Faster end crystal placement speed'
+      - '&fCurrently: {status}'
+    CHAINMAIL_ON_RESPAWN:
+      DISPLAY-NAME: '&#6BF18DChainmail on Respawn'
+      MATERIAL: TOTEM_OF_UNDYING
+      SLOT: 19
+      LORE:
+      - '&7Receive respawn starter gear'
+      - '&fCurrently: {status}'
+    EXPLOSION_PARTICLES:
+      DISPLAY-NAME: '&#6BF18DExplosion Particles'
+      MATERIAL: TNT
+      SLOT: 20
+      LORE:
+      - '&7Show explosion particles'
+      - '&fCurrently: {status}'
+    EXPLOSION_SOUNDS:
+      DISPLAY-NAME: '&#6BF18DExplosion Sounds'
+      MATERIAL: GOAT_HORN
+      SLOT: 21
+      LORE:
+      - '&7Play explosion sound effects'
+      - '&fCurrently: {status}'
+    COMBAT_TIMER:
+      DISPLAY-NAME: '&#6BF18DCombat Timer'
+      MATERIAL: DIAMOND_SWORD
+      SLOT: 22
+      LORE:
+      - '&7Show the combat countdown on your action bar'
+      - '&fCurrently: {status}'
+    DISPLAY_DONUT_PLUS:
+      DISPLAY-NAME: '&#6BF18DDisplay Donut+'
+      MATERIAL: FEATHER
+      SLOT: 23
+      LORE:
+      - '&7Display your premium Donut+ status'
+      - '&fCurrently: {status}'
+    MONEY_NAMETAGS:
+      DISPLAY-NAME: '&#6BF18DMoney Nametags'
+      MATERIAL: NAME_TAG
+      SLOT: 24
+      LORE:
+      - '&7Show player balances under their names'
+      - '&fCurrently: {status}'
+    WORTH_DISPLAY:
+      DISPLAY-NAME: '&#6BF18DWorth Display'
+      MATERIAL: DIAMOND
+      SLOT: 25
+      LORE:
+      - '&7Show item worth values in item lore'
+      - '&fCurrently: {status}'
+    TPA_CONFIRM_MENUS:
+      DISPLAY-NAME: '&#6BF18DTpa Confirm Menus'
+      MATERIAL: COMPASS
+      SLOT: 26
+      LORE:
+      - '&7Show confirmation GUI for TPA'
+      - '&fCurrently: {status}'
+    # Row 4 - who may reach you
+    TPA_REQUESTS:
+      DISPLAY-NAME: '&#6BF18DTpa Requests'
+      MATERIAL: ENDER_PEARL
+      SLOT: 27
+      LORE:
+      - '&7Teleport requests privacy settings'
+      - '&fCurrently: {status}'
+    TPA_HERE_REQUESTS:
+      DISPLAY-NAME: '&#6BF18DTpa Here Requests'
+      MATERIAL: ENDER_EYE
+      SLOT: 28
+      LORE:
+      - '&7Teleport-here requests privacy settings'
+      - '&fCurrently: {status}'
+    PAYMENTS:
+      DISPLAY-NAME: '&#6BF18DPayments'
+      MATERIAL: EMERALD
+      SLOT: 29
+      LORE:
+      - '&7Incoming payments privacy settings'
+      - '&fCurrently: {status}'
+    RANDOMIZED_COORDS:
+      DISPLAY-NAME: '&#6BF18DRandomized Coords'
+      MATERIAL: NETHERITE_INGOT
+      SLOT: 30
+      LORE:
+      - '&7Show randomized coords on HUD (Kick on toggle)'
+      - '&fCurrently: {status}'
+    DUEL_REQUESTS:
+      DISPLAY-NAME: '&#6BF18DDuel Requests'
+      MATERIAL: IRON_SWORD
+      SLOT: 31
+      LORE:
+      - '&7Receive incoming duel requests'
+      - '&fCurrently: {status}'
+    PAY_CONFIRM_MENUS:
+      DISPLAY-NAME: '&#6BF18DPay Confirm Menus'
+      MATERIAL: PAPER
+      SLOT: 32
+      LORE:
+      - '&7Show confirmation GUI for payments'
+      - '&fCurrently: {status}'
+    AUTO_CONFIRM_TPAS:
+      DISPLAY-NAME: '&#6BF18DAuto-Confirm Tpas'
+      MATERIAL: CLOCK
+      SLOT: 33
+      LORE:
+      - '&7Auto-confirm teleport requests'
+      - '&fCurrently: {status}'
+    TEAM_INVITES:
+      DISPLAY-NAME: '&#6BF18DTeam Invites'
+      MATERIAL: SHIELD
+      SLOT: 34
+      LORE:
+      - '&7Receive team invitations'
+      - '&fCurrently: {status}'
+    DUEL_MUSIC:
+      DISPLAY-NAME: '&#6BF18DDuel Music'
+      MATERIAL: JUKEBOX
+      SLOT: 35
+      LORE:
+      - '&7Play music and sounds during duels'
+      - '&fCurrently: {status}'
+    # Row 5 - the scoreboard and the lines on it
+    SCOREBOARD_VISIBILITY:
+      DISPLAY-NAME: '&#6BF18DShow Scoreboard'
+      MATERIAL: LECTERN
+      SLOT: 36
+      LORE:
+      - '&7Show the sidebar scoreboard'
+      - '&fCurrently: {status}'
+    SHOW_MONEY:
+      DISPLAY-NAME: '&#6BF18DShow Money'
+      MATERIAL: GOLD_INGOT
+      SLOT: 37
+      LORE:
+      - '&7Show the money line on the scoreboard'
+      - '&fCurrently: {status}'
+    SHOW_SHARDS:
+      DISPLAY-NAME: '&#6BF18DShow Shards'
+      MATERIAL: AMETHYST_SHARD
+      SLOT: 38
+      LORE:
+      - '&7Show the shards line on the scoreboard'
+      - '&fCurrently: {status}'
+    SHOW_KILLS:
+      DISPLAY-NAME: '&#6BF18DShow Kills'
+      MATERIAL: IRON_SWORD
+      SLOT: 39
+      LORE:
+      - '&7Show the kills line on the scoreboard'
+      - '&fCurrently: {status}'
+    SHOW_DEATHS:
+      DISPLAY-NAME: '&#6BF18DShow Deaths'
+      MATERIAL: SKELETON_SKULL
+      SLOT: 40
+      LORE:
+      - '&7Show the deaths line on the scoreboard'
+      - '&fCurrently: {status}'
+    SHOW_PLAYTIME:
+      DISPLAY-NAME: '&#6BF18DShow Playtime'
+      MATERIAL: CLOCK
+      SLOT: 41
+      LORE:
+      - '&7Show the playtime line on the scoreboard'
+      - '&fCurrently: {status}'
+    CLEAR_ENTITIES_MESSAGES:
+      DISPLAY-NAME: '&#6BF18DClear Entities Messages'
+      MATERIAL: HOPPER
+      SLOT: 42
+      LORE:
+      - '&7Show the entity clear countdown'
+      - '&fCurrently: {status}'
+    # Row 6 - the world around you
+    QUICK_AUCTION_PURCHASE:
+      DISPLAY-NAME: '&#6BF18DQuick Auction Purchase'
+      MATERIAL: GOLD_INGOT
+      SLOT: 45
+      LORE:
+      - '&7Fast buy auction items directly'
+      - '&fCurrently: {status}'
+    QUICK_AUCTION_SELL:
+      DISPLAY-NAME: '&#6BF18DQuick Auction Sell'
+      MATERIAL: GOLD_BLOCK
+      SLOT: 46
+      LORE:
+      - '&7Fast sell items to auction house'
+      - '&fCurrently: {status}'
+    DISABLE_MOB_SPAWN:
+      DISPLAY-NAME: '&#6BF18DDisable Mob Spawns'
+      MATERIAL: ZOMBIE_HEAD
+      SLOT: 47
+      LORE:
+      - '&7Prevent mobs spawning around you'
+      - '&fCurrently: {status}'
+    DISABLE_PHANTOM_SPAWN:
+      DISPLAY-NAME: '&#6BF18DDisable Phantom Spawn'
+      MATERIAL: PHANTOM_MEMBRANE
+      SLOT: 48
+      LORE:
+      - '&7Prevent phantoms spawning above you'
+      - '&fCurrently: {status}'
+    NIGHT_VISION:
+      DISPLAY-NAME: '&#6BF18DNight Vision'
+      MATERIAL: GOLDEN_CARROT
+      SLOT: 49
+      LORE:
+      - '&7Permanent night vision effect'
+      - '&fCurrently: {status}'
+    DESTROY_PEARL_ON_DEATH:
+      DISPLAY-NAME: '&#6BF18DDestroy Pearl on Death'
+      MATERIAL: PAPER
+      SLOT: 50
+      LORE:
+      - '&7Destroy thrown ender pearls when you die'
+      - '&fCurrently: {status}'
+    HIDE_ALL_PLAYERS:
+      DISPLAY-NAME: '&#6BF18DHide All Players'
+      MATERIAL: PLAYER_HEAD
+      SLOT: 51
+      LORE:
+      - '&7Hide every other player from view'
+      - '&fCurrently: {status}'
+    TOTEM_PARTICLES:
+      DISPLAY-NAME: '&#6BF18DTotem Particles'
+      MATERIAL: TOTEM_OF_UNDYING
+      SLOT: 52
+      LORE:
+      - '&7Show totem particles on use'
+      - '&fCurrently: {status}'
+    QUIET_SPAWN:
+      DISPLAY-NAME: '&#6BF18DQuiet Spawn Teleportation'
+      MATERIAL: RESPAWN_ANCHOR
+      SLOT: 53
+      LORE:
+      - '&7Silence the spawn teleport effects'
+      - '&fCurrently: {status}'
+LEADERBOARDS-MENU:
+  TITLE: '&8Leaderboards'
+  SIZE: 36
+  TYPE-MENU:
+    TITLE: '&8{type}'
+    SIZE: 54
+    BUTTON:
+      MATERIAL: PLAYER_HEAD
+      DISPLAY-NAME: '&#6BF18D{player}'
+      LORE: '&f{type}: &7{value} &#6BF18D(#{position})'
+  TYPE-NAMES:
+    money: Money
+    moneySpent: Money Spent
+    moneyMade: Money Made
+    kills: Kills
+    deaths: Deaths
+    playtime: Playtime
+    blocksPlaced: Blocks Placed
+    blocksBroken: Blocks Broken
+    mobsKilled: Mobs Killed
+    killStreak: Kill Streak
+    highestKillStreak: Highest Kill Streak
+    shards: Shards
+    bounties: Bounties
+  BUTTONS:
+    MONEY:
+      TYPE: money
+      DISPLAY-NAME: '&#6BF18DMoney Leaderboard'
+      MATERIAL: EMERALD
+      SLOT: 10
+      LORE:
+      - '&fClick to view MONEY leaderboard'
+    SHARDS:
+      TYPE: shards
+      DISPLAY-NAME: '&#6BF18DShards Leaderboard'
+      MATERIAL: AMETHYST_SHARD
+      SLOT: 11
+      LORE:
+      - '&fClick to view SHARDS leaderboard'
+    KILLS:
+      TYPE: kills
+      DISPLAY-NAME: '&#6BF18DKills Leaderboard'
+      MATERIAL: DIAMOND_SWORD
+      SLOT: 12
+      LORE:
+      - '&fClick to view KILLS leaderboard'
+    DEATHS:
+      TYPE: deaths
+      DISPLAY-NAME: '&#6BF18DDeaths Leaderboard'
+      MATERIAL: SKELETON_SKULL
+      SLOT: 13
+      LORE:
+      - '&fClick to view DEATHS leaderboard'
+    PLAYTIME:
+      TYPE: playtime
+      DISPLAY-NAME: '&#6BF18DPlaytime Leaderboard'
+      MATERIAL: CLOCK
+      SLOT: 14
+      LORE:
+      - '&fClick to view PLAYTIME leaderboard'
+    BLOCKS_PLACED:
+      TYPE: blocksPlaced
+      DISPLAY-NAME: '&#6BF18DBlocks Placed Leaderboard'
+      MATERIAL: STONE
+      SLOT: 15
+      LORE:
+      - '&fClick to view BLOCKS PLACED leaderboard'
+    BLOCKS_BROKEN:
+      TYPE: blocksBroken
+      DISPLAY-NAME: '&#6BF18DBlocks Broken Leaderboard'
+      MATERIAL: COBBLESTONE
+      SLOT: 16
+      LORE:
+      - '&fClick to view BLOCKS BROKEN leaderboard'
+    MOBS_KILLED:
+      TYPE: mobsKilled
+      DISPLAY-NAME: '&#6BF18DMobs Killed Leaderboard'
+      MATERIAL: ZOMBIE_HEAD
+      SLOT: 19
+      LORE:
+      - '&fClick to view MOBS KILLED leaderboard'
+    KILL_STREAK:
+      TYPE: killStreak
+      DISPLAY-NAME: '&#6BF18DKill Streak Leaderboard'
+      MATERIAL: DIAMOND_AXE
+      SLOT: 20
+      LORE:
+      - '&fClick to view KILL STREAK leaderboard'
+    HIGHEST_KILL_STREAK:
+      TYPE: highestKillStreak
+      DISPLAY-NAME: '&#6BF18DHighest Kill Streak Leaderboard'
+      MATERIAL: NETHERITE_SWORD
+      SLOT: 21
+      LORE:
+      - '&fClick to view HIGHEST KILL STREAK leaderboard'
+    MONEY_SPENT:
+      TYPE: moneySpent
+      DISPLAY-NAME: '&#6BF18DMoney Spent On Shop'
+      MATERIAL: GOLD_NUGGET
+      SLOT: 22
+      LORE:
+      - '&fClick to view MONEY SPENT ON SHOP leaderboard'
+    MONEY_MADE:
+      TYPE: moneyMade
+      DISPLAY-NAME: '&#6BF18DMoney Made On /Sell'
+      MATERIAL: IRON_NUGGET
+      SLOT: 23
+      LORE:
+      - '&fClick to view MONEY MADE ON /SELL leaderboard'
+    BOUNTIES:
+      TYPE: bounties
+      DISPLAY-NAME: '&#6BF18DBounties Leaderboard'
+      MATERIAL: WITHER_SKELETON_SKULL
+      SLOT: 24
+      LORE:
+      - '&fClick to view BOUNTIES leaderboard'
+PROGRESS-MENU:
+  PROGRESS-BAR: "■"
+  LEVEL:
+  - 25000
+  - 150000
+  - 500000
+  - 1000000
+  - 5000000
+  - 25000000
+  - 250000000
+  - 550000000
+  - 850000000
+  - 1000000000
+  - 2000000000
+  - 4000000000
+  - 8000000000
+  - 10000000000
+  - 20000000000
+  - 40000000000
+  - 80000000000
+  - 160000000000
+  - 320000000000
+  - 640000000000
+  TITLE:
+    CROPS: '&8CROPS PROGRESS'
+    ORES: '&8ORE PROGRESS'
+    MOBS: '&8MOB DROPS PROGRESS'
+    NATURAL: '&8NATURAL ITEMS PROGRESS'
+    ARMOR_AND_TOOLS: '&8ARMOR AND TOOLS PROGRESS'
+    FISH: '&8FISH PROGRESS'
+    BOOK: '&8ENCHANTED BOOK PROGRESS'
+    POTIONS: '&8POTIONS PROGRESS'
+    BLOCKS: '&8BLOCKS PROGRESS'
+  TYPE-BUTTON:
+    TITLE:
+      CROPS: '&#6BF18DCROPS'
+      ORES: '&#6BF18DORE'
+      MOBS: '&#6BF18DMOB'
+      NATURAL: '&#6BF18DNATURAL ITEMS'
+      ARMOR_AND_TOOLS: '&#6BF18DARMOR AND TOOLS'
+      FISH: '&#6BF18DFISH'
+      BOOK: '&#6BF18DENCHANTED BOOK'
+      POTIONS: '&#6BF18DPOTIONS'
+      BLOCKS: '&#6BF18DBLOCKS'
+    LORE:
+      CROPS:
+      - '&7Sell crops and farming materials to'
+      - '&7upgrade your sell multiplier!'
+      - ''
+      - '&e► Click to view items in this category'
+      ORES:
+      - '&7Sell ores and mining materials to'
+      - '&7upgrade your sell multiplier!'
+      - ''
+      - '&e► Click to view items in this category'
+      MOBS:
+      - '&7Sell mob drops and combat materials to'
+      - '&7upgrade your sell multiplier!'
+      - ''
+      - '&e► Click to view items in this category'
+      NATURAL:
+      - '&7Sell natural materials and trees to'
+      - '&7upgrade your sell multiplier!'
+      - ''
+      - '&e► Click to view items in this category'
+      ARMOR_AND_TOOLS:
+      - '&7Sell armor and tools to'
+      - '&7upgrade your sell multiplier!'
+      - ''
+      - '&e► Click to view items in this category'
+      FISH:
+      - '&7Sell fish and other fishing loot to'
+      - '&7upgrade your sell multiplier!'
+      - ''
+      - '&e► Click to view items in this category'
+      BOOK:
+      - '&7Sell books and enchanted books to'
+      - '&7upgrade your sell multiplier!'
+      - ''
+      - '&e► Click to view items in this category'
+      POTIONS:
+      - '&7Sell potions and brewing materials to'
+      - '&7upgrade your sell multiplier!'
+      - ''
+      - '&e► Click to view items in this category'
+      BLOCKS:
+      - '&7Sell blocks and placeable items to'
+      - '&7upgrade your sell multiplier!'
+      - ''
+      - '&e► Click to view items in this category'
+    MATERIAL:
+      CROPS: WHEAT
+      ORES: DIAMOND
+      MOBS: BONE
+      NATURAL: OAK_LEAVES
+      ARMOR_AND_TOOLS: NETHERITE_HELMET
+      FISH: TROPICAL_FISH
+      BOOK: BOOK
+      POTIONS: BREWING_STAND
+      BLOCKS: BRICK
+  WORKING-BUTTON:
+    TITLE: '&eWorking'
+    MATERIAL: YELLOW_STAINED_GLASS_PANE
+    LORE:
+    - '{porcentage_level} &f{next_multiplier} {porcentage}%'
+    - '&7{current_earned}/{next_goal}'
+  COMPLETED-BUTTON:
+    TITLE: '&aCompleted'
+    MATERIAL: LIME_STAINED_GLASS_PANE
+    LORE:
+    - '{porcentage_level} &f{next_multiplier} {porcentage}%'
+    - '&7{current_earned}/{next_goal}'
+SELL-MENU:
+  TITLE: '&8Place Items In Here To Sell'
+  MULTIPLIER-TITLE: '&8Sell Multipliers'
+  # MODE decides when the menu takes payment. 'confirm' shows the Confirm Sell button and gives
+  # items back if the player closes without clicking it. 'close' sells the whole grid the moment
+  # the menu is shut. 'instant' pays out item by item as things land, and AUTO-SELL only applies
+  # there: set it false and instant behaves like 'close'.
+  AUTO-SELL: true
+  MODE: "confirm"
+  CONFIRM-BUTTON:
+    MATERIAL: "LIME_STAINED_GLASS_PANE"
+    TITLE: "&a&lConfirm Sell"
+    # {price} is the compact total, {price_formatted} is the full money format.
+    LORE:
+    - "&a{price_formatted}"
+  CROPS-BUTTON:
+    MATERIAL: WHEAT
+    TITLE: '&#6BF18DCrops'
+    LORE:
+    - '&7Sell crops and farming materials to'
+    - '&7upgrade your sell multiplier!'
+    - ''
+    - '&7Progress to &f{next_multiplier}'
+    - '{porcentage_level} &#6BF18D{porcentage}%'
+  ORES-BUTTON:
+    MATERIAL: DIAMOND
+    TITLE: '&#6BF18DOres'
+    LORE:
+    - '&7Sell ores and mining materials to'
+    - '&7upgrade your sell multiplier!'
+    - ''
+    - '&7Progress to &f{next_multiplier}'
+    - '{porcentage_level} &#6BF18D{porcentage}%'
+  MOBS-BUTTON:
+    MATERIAL: BONE
+    TITLE: '&#6BF18DMobs'
+    LORE:
+    - '&7Sell mob drops and combat materials to'
+    - '&7upgrade your sell multiplier!'
+    - ''
+    - '&7Progress to &f{next_multiplier}'
+    - '{porcentage_level} &#6BF18D{porcentage}%'
+  NATURAL-BUTTON:
+    MATERIAL: OAK_LEAVES
+    TITLE: '&#6BF18DNatural Items'
+    LORE:
+    - '&7Sell natural materials and trees to'
+    - '&7upgrade your sell multiplier!'
+    - ''
+    - '&7Progress to &f{next_multiplier}'
+    - '{porcentage_level} &#6BF18D{porcentage}%'
+  ARMOR-AND-TOOLS-BUTTON:
+    MATERIAL: NETHERITE_HELMET
+    TITLE: '&#6BF18DArmor And Tools'
+    LORE:
+    - '&7Sell armor and tools to'
+    - '&7upgrade your sell multiplier!'
+    - ''
+    - '&7Progress to &f{next_multiplier}'
+    - '{porcentage_level} &#6BF18D{porcentage}%'
+  FISH-BUTTON:
+    MATERIAL: TROPICAL_FISH
+    TITLE: '&#6BF18DFish'
+    LORE:
+    - '&7Sell fish and other fishing loot to'
+    - '&7upgrade your sell multiplier!'
+    - ''
+    - '&7Progress to &f{next_multiplier}'
+    - '{porcentage_level} &#6BF18D{porcentage}%'
+  BOOK-BUTTON:
+    MATERIAL: BOOK
+    TITLE: '&#6BF18DEnchanted Book'
+    LORE:
+    - '&7Sell books and enchanted books to'
+    - '&7upgrade your sell multiplier!'
+    - ''
+    - '&7Progress to &f{next_multiplier}'
+    - '{porcentage_level} &#6BF18D{porcentage}%'
+  POTIONS-BUTTON:
+    MATERIAL: BREWING_STAND
+    TITLE: '&#6BF18DPotions'
+    LORE:
+    - '&7Sell potions and brewing materials to'
+    - '&7upgrade your sell multiplier!'
+    - ''
+    - '&7Progress to &f{next_multiplier}'
+    - '{porcentage_level} &#6BF18D{porcentage}%'
+  BLOCKS-BUTTON:
+    MATERIAL: BRICK
+    TITLE: '&#6BF18DBlocks'
+    LORE:
+    - '&7Sell blocks and placeable items to'
+    - '&7upgrade your sell multiplier!'
+    - ''
+    - '&7Progress to &f{next_multiplier}'
+    - '{porcentage_level} &#6BF18D{porcentage}%'
+WORTH-MENU:
+  TITLE: '&8Item Prices'
+  FORMAT: '&7Worth: &a₵{price}'
+  SORT-BUTTON:
+    TITLE: '&aSort'
+    MATERIAL: CAULDRON
+TPA-CONFIRM-MENU:
+  TITLE: '&8Confirm TPA {here}'
+  SIZE: 27
+  BUTTONS:
+    CANCEL:
+      MATERIAL: RED_STAINED_GLASS_PANE
+      NAME: '&cCancel'
+      LORE:
+      - '&fCLICK TO CANCEL'
+    CONFIRM:
+      MATERIAL: LIME_STAINED_GLASS_PANE
+      NAME: '&aConfirm'
+      LORE:
+      - '&fCLICK TO CONFIRM'
+    PLAYER:
+      MATERIAL: PLAYER_HEAD
+      NAME: '&#00FC00Player'
+      LORE:
+      - '&7{player}'
+    LOCATION:
+      NAME: '&#6BF18DLocation'
+      MATERIAL: GRASS_BLOCK
+      LORE:
+      - '&7{world}'
+    REGION:
+      NAME: '&#6BF18DRegion'
+      MATERIAL: FEATHER
+      LORE:
+      - '&7NA East (&#0069D6₵{ping}ms&7)'
+BOUNTIES-MENU:
+  TITLE: '&8Bounties'
+  SIZE: 54
+  MAX-ITEMS-PER-PAGE: 45
+  BOUNTY-BUTTON:
+    MATERIAL: PLAYER_HEAD
+    NAME: '&#6BF18D{player}'
+    LORE:
+    - '&fBounty: &7₵{price}'
+  REFRESH-BUTTON:
+    SLOT: 49
+    MATERIAL: SKELETON_SKULL
+    NAME: '&#6BF18DBounties'
+    LORE:
+    - '&fClick to refresh'
+    - ''
+    - '&7Set a bounty using this:'
+    - '&7/bounty add (player) (amount)'
+BOUNTY-CONFIRM-MENU:
+  TITLE: '&8Confirm Bounty'
+  SIZE: 27
+  CANCEL-BUTTON:
+    MATERIAL: RED_STAINED_GLASS_PANE
+    NAME: '&#FC0000Cancel'
+    LORE:
+    - '&7Click to cancel the bounty adding!'
+  PLAYER-BUTTON:
+    MATERIAL: PLAYER_HEAD
+    NAME: '&#00FC00{player}'
+    LORE:
+    - '&fYou''re going to set &#00FC00{amount}'
+  CONFIRM-BUTTON:
+    MATERIAL: LIME_STAINED_GLASS_PANE
+    NAME: '&#00FC00Confirm'
+    LORE:
+    - '&7Click to confirm to add {amount} bounty!'
+SELL-HISTORY-MENU:
+  TITLE: '&8Sell History'
+  SIZE: 54
+  MAX-ITEMS-PER-PAGE: 45
+  BUTTONS:
+    SORT:
+      MATERIAL: ANVIL
+      NAME: '&aSort'
+      LORE:
+      - '&fClick to sort'
+      - ''
+      - '&7({sort_state})'
+      SLOT: 49
+    MATERIAL-ITEM:
+      LORE:
+      - '&fTotal price: &a{price}'
+      - '&fTotal amount: {amount}'
+BILLFORD-MENU:
+  TITLE: '&8Billford'
+  SIZE: 54
+  TRADE-BUTTON:
+    MATERIAL:
+      NAME: '&aTrade with Billford'
+      LORE:
+      - ''
+  CONFIRM-TRADE-BUTTON:
+    MATERIAL: HOPPER
+    NAME: '&8Trade'
+    LORE:
+    - '&fClick to confirm the trade'
+    - ''
+    - '&7(you need the items in your inventory)'
+PURCHASE-SHOP-MENU:
+  TITLE: '&8Confirmation Menu'
+  SIZE: 27
+  BUTTONS:
+    MAIN:
+      SLOT: 13
+      LORE:
+        MONEY: '&fBUY PRICE: &a₵{price}'
+        SHARD: '&fBUY PRICE: &5₵{price}X &lShards'
+        DEFAULT: '&fBUY PRICE: &a₵{price}'
+    CANCEL:
+      SLOT: 21
+      MATERIAL: RED_STAINED_GLASS_PANE
+      NAME: '&cCancel'
+      LORE: '&fCLICK TO CANCEL'
+    CONFIRM:
+      SLOT: 23
+      MATERIAL: LIME_STAINED_GLASS_PANE
+      NAME: '&aConfirm'
+      LORE: '&fCLICK TO BUY'
+    QUANTITY_ADJUST:
+      ADD:
+        MATERIAL: LIME_STAINED_GLASS_PANE
+        ADD_1:
+          SLOT: 15
+          NAME: '&aAdd 1'
+          INCREMENT: 1
+        ADD_10:
+          SLOT: 16
+          NAME: '&aAdd 10'
+          INCREMENT: 10
+        SET_64:
+          SLOT: 17
+          NAME: '&aSet To 64'
+          INCREMENT: 64
+      REMOVE:
+        MATERIAL: RED_STAINED_GLASS_PANE
+        REMOVE_1:
+          SLOT: 11
+          NAME: '&cRemove 1'
+          DECREMENT: 1
+        REMOVE_10:
+          SLOT: 10
+          NAME: '&cRemove 10'
+          DECREMENT: 10
+        REMOVE_64:
+          SLOT: 9
+          NAME: '&cRemove 64'
+          DECREMENT: 64
+  RESTRICTIONS:
+    TOTEM_OF_UNDYING:
+      MAX_QUANTITY: 1
+      MIN_QUANTITY: 1
+      HIDE_QUANTITY_BUTTONS: true
+    ENDER_PEARL:
+      MAX_QUANTITY: 16
+      MIN_QUANTITY: 1
+    DEFAULT:
+      MAX_QUANTITY: 64
+      MIN_QUANTITY: 1
+  MESSAGES:
+    SUCCESS:
+      MONEY: '&7You bought &e{Quantity} {item-name}&7 for &a₵{amount}'
+      SHARDS: '&7You bought {item-name}&7 for &5{amount} shards'
+    ERROR:
+      NO_MONEY: '&cYOU DON''T HAVE ENOUGH MONEY.'
+      NO_SHARDS: '&cYOU DON''T HAVE ENOUGH SHARDS.'
+      FULL_INVENTORY: '&cYOUR INVENTORY IS FULL.'
+  SOUNDS:
+    SUCCESS: ENTITY_EXPERIENCE_ORB_PICKUP
+    ERROR: ENTITY_VILLAGER_NO
+PAY-CONFIRM-MENU:
+  TITLE: '&8Confirm Payment'
+  SIZE: 27
+  CONFIRM-BUTTON:
+    TITLE: '&#00FC00Confirm'
+    MATERIAL: LIME_STAINED_GLASS_PANE
+    LORE:
+    - '&7Click to confirm to pay {amount}!'
+  CANCEL-BUTTON:
+    TITLE: '&#FC0000Cancel'
+    MATERIAL: RED_STAINED_GLASS_PANE
+    LORE:
+    - '&7Click to cancel'
+  PLAYER-BUTTON:
+    TITLE: '&#00FC00{player}'
+    MATERIAL: PLAYER_HEAD
+SELLALL-CONFIRM-MENU:
+  TITLE: '&8Confirm Sell All'
+  SIZE: 27
+  CONFIRM-BUTTON:
+    TITLE: '&#00FC00Confirm'
+    MATERIAL: LIME_STAINED_GLASS_PANE
+    SLOT: 15
+    LORE:
+    - '&7Click to confirm to sell all'
+    - '&7sellable items in your inventory.'
+  CANCEL-BUTTON:
+    TITLE: '&#FC0000Cancel'
+    MATERIAL: RED_STAINED_GLASS_PANE
+    SLOT: 11
+    LORE:
+    - '&7Click to cancel'
+  INFO-BUTTON:
+    TITLE: '&#E69F00Sell All Items'
+    MATERIAL: CHEST
+    SLOT: 13
+    LORE:
+    - '&7This will sell all sellable'
+    - '&7items in your inventory.'
+SERVER-INFO-MENU:
+  TITLE: '&8Server Info'
+  SIZE: 27
+  BUTTONS:
+    SERVER:
+      MATERIAL: LANTERN
+      SLOT: 10
+      NAME: '&#00A4FCDonutSMP'
+      LORE:
+      - '&fBuild a base, fight players,'
+      - '&fand become the richest.'
+      - ''
+      - '&#00A4FCPVP: &cEnabled'
+      - '&#00A4FCDifficulty: &cHard'
+      - '&#00A4FCkeepInventory: &cFalse'
+    ECONOMY:
+      MATERIAL: GOLD_INGOT
+      SLOT: 11
+      NAME: '&#00A4FCEconomy'
+      LORE:
+      - '&fYou can earn server money by selling items in game.'
+      - '&fThis allows you to buy better things like armor and pvp gear.'
+      - ''
+      - '&#00A4FCCommands: &f/sell and /auction'
+    RULES:
+      MATERIAL: KNOWLEDGE_BOOK
+      SLOT: 12
+      NAME: '&#00A4FCRules'
+      LORE:
+      - '&fTo keep the community safe, everyone must'
+      - '&ffollow the rules or be subject to punishment.'
+      - ''
+      - '&#00A4FCCommand: &f/rules'
+    LEADERBOARDS:
+      MATERIAL: CLOCK
+      SLOT: 13
+      NAME: '&#00A4FCLeaderboards'
+      LORE:
+      - '&fLook at the top players and'
+      - '&fcompete for the top spots.'
+      - ''
+      - '&#00A4FCCommand: &f/leaderboards'
+    SHARDS:
+      MATERIAL: AMETHYST_SHARD
+      SLOT: 14
+      NAME: '&#00A4FCAFK Shards'
+      LORE:
+      - '&fYou can earn shards by sitting idle, then'
+      - '&fbuy things like spawners, keys, and more.'
+      - ''
+      - '&#00A4FCCommand: &f/afk'
+    SETTINGS:
+      MATERIAL: GRAY_DYE
+      SLOT: 15
+      NAME: '&#00A4FCSettings'
+      LORE:
+      - '&fYou can change certain settings'
+      - '&fbased on your preferences.'
+      - ''
+      - '&#00A4FCCommand: &f/settings'
+    RTP:
+      MATERIAL: OAK_SAPLING
+      SLOT: 16
+      NAME: '&#00A4FCRandom Teleport'
+      LORE:
+      - '&fUse the random teleport to'
+      - '&fget far away from spawn.'
+      - ''
+      - '&#00A4FCOverworld: &f175k X 175k'
+      - '&#00A4FCNether: &f7.5k X 7.5k'
+      - '&#00A4FCEnd: &f225k X 225k'
+      - ''
+      - '&#00A4FCCommand: &f/rtp'
+  NAVIGATION:
+    BACK-SLOT: 18
+    PAGE-INFO-SLOT: 22
+    NEXT-SLOT: 26
+    PAGE-INFO-MATERIAL: BOOK
+    PAGE-INFO-NAME: '&#00A4FCHelp Pages'
+  PAGES:
+    '1':
+      TITLE: '&8Server Info'
+      SIZE: 27
+      BUTTONS:
+        SERVER:
+          MATERIAL: LANTERN
+          SLOT: 10
+          NAME: '&#00A4FCDonutSMP'
+          LORE:
+          - '&fBuild a base, fight players,'
+          - '&fand become the richest.'
+          - ''
+          - '&#00A4FCPVP: &cEnabled'
+          - '&#00A4FCDifficulty: &cHard'
+          - '&#00A4FCkeepInventory: &cFalse'
+        ECONOMY:
+          MATERIAL: GOLD_INGOT
+          SLOT: 11
+          NAME: '&#00A4FCEconomy'
+          LORE:
+          - '&fYou can earn server money by selling items in game.'
+          - '&fThis allows you to buy better things like armor and pvp gear.'
+          - ''
+          - '&#00A4FCCommands: &f/sell and /auctionhouse'
+        RULES:
+          MATERIAL: KNOWLEDGE_BOOK
+          SLOT: 12
+          NAME: '&#00A4FCRules'
+          LORE:
+          - '&fTo keep the community safe, everyone must'
+          - '&ffollow the rules or be subject to punishment.'
+          - ''
+          - '&#00A4FCCommand: &f/rules'
+          COMMAND: rules
+        LEADERBOARDS:
+          MATERIAL: CLOCK
+          SLOT: 13
+          NAME: '&#00A4FCLeaderboards'
+          LORE:
+          - '&fLook at the top players and'
+          - '&fcompete for the top spots.'
+          - ''
+          - '&#00A4FCCommand: &f/leaderboards'
+          COMMAND: leaderboards
+        SHARDS:
+          MATERIAL: AMETHYST_SHARD
+          SLOT: 14
+          NAME: '&#00A4FCAFK Shards'
+          LORE:
+          - '&fYou can earn shards by sitting idle, then'
+          - '&fbuy things like spawners, keys, and more.'
+          - ''
+          - '&#00A4FCCommand: &f/afk'
+          COMMAND: afk
+        SETTINGS:
+          MATERIAL: GRAY_DYE
+          SLOT: 15
+          NAME: '&#00A4FCSettings'
+          LORE:
+          - '&fYou can change certain settings'
+          - '&fbased on your preferences.'
+          - ''
+          - '&#00A4FCCommand: &f/settings'
+          COMMAND: settings
+        RTP:
+          MATERIAL: OAK_SAPLING
+          SLOT: 16
+          NAME: '&#00A4FCRandom Teleport'
+          LORE:
+          - '&fUse the random teleport to'
+          - '&fget far away from spawn.'
+          - ''
+          - '&#00A4FCOverworld: &f175k X 175k'
+          - '&#00A4FCNether: &f7.5k X 7.5k'
+          - '&#00A4FCEnd: &f225k X 225k'
+          - ''
+          - '&#00A4FCCommand: &f/rtp'
+          COMMAND: rtp
+    '2':
+      TITLE: '&8Getting Started'
+      SIZE: 27
+      BUTTONS:
+        START_HERE:
+          MATERIAL: BOOK
+          SLOT: 10
+          NAME: '&#00A4FCStart Here'
+          LORE:
+          - '&f1. Use &b/rtp &fto leave spawn.'
+          - '&f2. Gather wood, food, and iron.'
+          - '&f3. Build a safe base.'
+          - '&f4. Save it with &b/sethome&f.'
+          CLICK-MESSAGE:
+          - '&7Start with &f/rtp &7to find land away from spawn.'
+          - '&7After building a base, save it using &f/sethome&7.'
+        MONEY:
+          MATERIAL: GOLD_INGOT
+          SLOT: 11
+          NAME: '&#00A4FCMake Money'
+          LORE:
+          - '&fSell blocks, ores, and drops with'
+          - '&b/sell &for list items in'
+          - '&b/auctionhouse&f.'
+          - ''
+          - '&#00A4FCTip: &fKeep rare loot to trade.'
+          COMMAND: sell
+        HOMES:
+          MATERIAL: RED_BED
+          SLOT: 12
+          NAME: '&#00A4FCHomes'
+          LORE:
+          - '&fUse &b/sethome <name> &fto save'
+          - '&fimportant places.'
+          - ''
+          - '&#00A4FCOpen: &f/home'
+          COMMAND: home
+        TEAMS:
+          MATERIAL: IRON_HELMET
+          SLOT: 13
+          NAME: '&#00A4FCTeams'
+          LORE:
+          - '&fPlay with friends, share a base,'
+          - '&fand manage team permissions.'
+          - ''
+          - '&#00A4FCOpen: &f/team'
+          COMMAND: team
+        COMBAT:
+          MATERIAL: DIAMOND_SWORD
+          SLOT: 14
+          NAME: '&#00A4FCCombat Tips'
+          LORE:
+          - '&fDying is punishing because'
+          - '&fkeepInventory is turned off.'
+          - ''
+          - '&#00A4FCTip: &fAvoid risky fights'
+          - '&funtil you are geared.'
+          CLICK-MESSAGE:
+          - '&7You drop your items on death here, so gear up before taking big fights.'
+          - '&7Keep backup armor and food if you plan to PvP often.'
+        SPAWN:
+          MATERIAL: COMPASS
+          SLOT: 15
+          NAME: '&#00A4FCSpawn'
+          LORE:
+          - '&fReturn to spawn when you need'
+          - '&fshops, safety, or a reset.'
+          - ''
+          - '&#00A4FCCommand: &f/spawn'
+          COMMAND: spawn
+        RTP_GUIDE:
+          MATERIAL: OAK_SAPLING
+          SLOT: 16
+          NAME: '&#00A4FCRTP Guide'
+          LORE:
+          - '&fUse RTP when spawn feels crowded'
+          - '&for you need fresh land.'
+          - ''
+          - '&#00A4FCCommand: &f/rtp'
+          COMMAND: rtp
+    '3':
+      TITLE: '&8Useful Commands'
+      SIZE: 27
+      BUTTONS:
+        SHOP:
+          MATERIAL: EMERALD
+          SLOT: 10
+          NAME: '&#00A4FCShop'
+          LORE:
+          - '&fBuy useful items, blocks,'
+          - '&fand starter gear.'
+          - ''
+          - '&#00A4FCCommand: &f/shop'
+          COMMAND: shop
+        SELL:
+          MATERIAL: CHEST
+          SLOT: 11
+          NAME: '&#00A4FCSell'
+          LORE:
+          - '&fTurn farmed or mined items'
+          - '&finto Quick money.'
+          - ''
+          - '&#00A4FCCommand: &f/sell'
+          COMMAND: sell
+        TPA:
+          MATERIAL: ENDER_PEARL
+          SLOT: 12
+          NAME: '&#00A4FCTeleport ReQuests'
+          LORE:
+          - '&fUse &b/tpa <player> &for'
+          - '&b/tpahere <player>&f.'
+          - ''
+          - '&#00A4FCTip: &fOnly teleport to'
+          - '&fpeople you trust.'
+          CLICK-MESSAGE:
+          - '&7Use &f/tpa <player> &7to reQuest teleporting to them.'
+          - '&7Use &f/tpahere <player> &7if you want them to come to you.'
+        LEADERBOARDS_GUIDE:
+          MATERIAL: CLOCK
+          SLOT: 13
+          NAME: '&#00A4FCLeaderboards'
+          LORE:
+          - '&fCheck who is leading in'
+          - '&fmoney, kills, and more.'
+          - ''
+          - '&#00A4FCCommand: &f/leaderboards'
+          COMMAND: leaderboards
+        SETTINGS_GUIDE:
+          MATERIAL: GRAY_DYE
+          SLOT: 14
+          NAME: '&#00A4FCSettings'
+          LORE:
+          - '&fToggle personal options like'
+          - '&falerts and menu preferences.'
+          - ''
+          - '&#00A4FCCommand: &f/settings'
+          COMMAND: settings
+        RULES_GUIDE:
+          MATERIAL: KNOWLEDGE_BOOK
+          SLOT: 15
+          NAME: '&#00A4FCRules'
+          LORE:
+          - '&fRead the rules before grinding'
+          - '&for trading with players.'
+          - ''
+          - '&#00A4FCCommand: &f/rules'
+          COMMAND: rules
+        SOCIAL_GUIDE:
+          MATERIAL: PINK_DYE
+          SLOT: 16
+          NAME: '&#00A4FCSocial & Media'
+          LORE:
+          - '&fOpen server links and check'
+          - '&fmedia rank reQuirements.'
+          - ''
+          - '&#00A4FCCommand: &f/media'
+          COMMAND: media
+RULES-MENU:
+  TITLE: '&8Rules'
+  SIZE: 27
+  BUTTONS:
+    RULE_1:
+      MATERIAL: KNOWLEDGE_BOOK
+      SLOT: 12
+      NAME: '&#00A4FCServer Rules'
+      LORE:
+      - "&#00A4FC● &fNo Hacked Clients"
+      - "&#00A4FC● &fNo Movement Mods"
+      - "&#00A4FC● &fNo Inventory Mods"
+      - "&#00A4FC● &fNo Health Indicators"
+      - "&#00A4FC● &fNo Radar"
+      - "&#00A4FC● &fNo Freecam"
+      - "&#00A4FC● &fNo Auto Place"
+      - "&#00A4FC● &fNo Easy Place"
+      - "&#00A4FC● &fNo Macros or Scripts"
+      - "&#00A4FC● &fNo Abusing bugs"
+      - "&#00A4FC● &fNo Using dupe methods"
+      - "&#00A4FC● &fNo Irl trading"
+      - "&#00A4FC● &fNo Invite Rewards"
+      - "&#00A4FC● &fNo Cross Server Trading"
+      - "&#00A4FC● &fNo Finding or Using the seed"
+      - "&#00A4FC● &fNo Using More Than 5 Accounts"
+      - "&#00A4FC● &fNo Mouse Tweaks / Scrollers"
+      - "&#00A4FC● &fNo Nitro Boost Rewards"
+      - "&#00A4FC● &fNo Crafting Modifications"
+      - "&#00A4FC● &fNo Staff Impersonation"
+      - "&#00A4FC● &fNo EXternal Gambling"
+    RULE_2:
+      MATERIAL: KNOWLEDGE_BOOK
+      SLOT: 14
+      NAME: '&#00A4FC&lChat Rules'
+      LORE:
+      - ''
+      - "&#00A4FC● &fNo Spamming or getting others to spam"
+      - "&#00A4FC● &fNo Harassing"
+      - "&#00A4FC● &fNo Advertising or Promotion"
+      - "&#00A4FC● &fNo Discrimination or Hate Speech"
+      - "&#00A4FC● &fNo Death Threats"
+      - "&#00A4FC● &fNo Sharing Others Private Information"
+      - "&#00A4FC● &fNo Pretending to be someone else"
+      - "&#00A4FC● &fNo Ban Evasion"
+      - "&#00A4FC● &fNo Lying to Staff Members"
+      - "&#00A4FC● &fReport All Bugs, Glitches, and Cheaters"
+      - '  &fin the discord &&#F97603(discord.gg/z5uwKstfp4)'
+AFK-MENU:
+  TITLE: '&8AFK Areas'
+  SIZE: 54
+  RANDOM-BUTTON:
+    SLOT: 49
+    MATERIAL: AMETHYST_BLOCK
+    DISPLAY-NAME: '&#A303F9AFK'
+    LORE:
+    - '&fClick to teleport to a random afk area'
+  AREAS:
+    '1':
+      SLOT: 0
+      MATERIAL: ITEM_FRAME
+      DISPLAY-NAME: '&#A303F9AFK #1'
+      LORE:
+      - '&8{players}/200'
+      - '&7Click to go to this'
+      - '&7AFK zone area.'
+      CUBOID: afk1
+      LOCATION: 1
+    '2':
+      SLOT: 1
+      MATERIAL: ITEM_FRAME
+      DISPLAY-NAME: '&#A303F9AFK #2'
+      LORE:
+      - '&8{players}/200'
+      - '&7Click to go to this'
+      - '&7AFK zone area.'
+      CUBOID: afk2
+      LOCATION: 2
+SPAWN-MENU:
+  TITLE: '&8Spawn Areas'
+  SIZE: 54
+  RANDOM-BUTTON:
+    SLOT: 49
+    MATERIAL: LIGHT_BLUE_GLAZED_TERRACOTTA
+    DISPLAY-NAME: '&#00A4FCSpawn'
+    LORE:
+    - '&fClick to teleport to a random spawn area'
+  AREAS:
+    '1':
+      SLOT: 0
+      MATERIAL: ITEM_FRAME
+      DISPLAY-NAME: '&#00A4FCSpawn #1'
+      LORE:
+      - '&8{players}/200'
+      - '&7Click to go to this'
+      - '&7Spawn area.'
+      CUBOID: spawn1
+      LOCATION: 1
+    '2':
+      SLOT: 1
+      MATERIAL: ITEM_FRAME
+      DISPLAY-NAME: '&#00A4FCSpawn #2'
+      LORE:
+      - '&8{players}/200'
+      - '&7Click to go to this'
+      - '&7Spawn area.'
+      CUBOID: spawn2
+      LOCATION: 2
+PROFILE-VIEWER-MENU:
+  TITLE: '&8{username}''s Profile'
+  SIZE: 54
+  BUTTONS:
+    SUMMARY:
+      SLOT: 4
+      MATERIAL: PLAYER_HEAD
+      DISPLAY-NAME: '&#6BF18D{username}'
+      LORE:
+      - '&7Status: &f{status}'
+      - '&7Team: &f{team}'
+      - '&7Homes: &f{homes}'
+      - '&7AFK: &f{afk}'
+      - '&7Location: &f{world} ({x}, {y}, {z})'
+    HOMES:
+      SLOT: 40
+      MATERIAL: RED_BED
+      DISPLAY-NAME: '&#6BF18DHomes'
+      LORE:
+      - '&7View and navigate through this player''s homes'
+      - '&7Homes saved: &f{homes}'
+      - '&aClick to open'
+    CURRENT-LOCATION:
+      SLOT: 41
+      MATERIAL: COMPASS
+      DISPLAY-NAME: '&#6BF18DCurrent Location'
+      DISPLAY-NAME-OFFLINE: '&cCurrent Location'
+      LORE:
+      - '&7{world} ({x}, {y}, {z})'
+      - '&aClick to teleport'
+      LORE-OFFLINE:
+      - '&7This player is offline right now.'
+    PUNISHMENTS:
+      SLOT: 42
+      MATERIAL: IRON_BARS
+      DISPLAY-NAME: '&#6BF18DPunishments'
+      LORE:
+      - '&7View this player''s punishment history'
+      - '&aClick to open'
+    REFRESH:
+      SLOT: 49
+      MATERIAL: CLOCK
+      DISPLAY-NAME: '&#6BF18DRefresh'
+      LORE:
+      - '&7Reload this player''s profile'
+PROFILE-VIEWER-HOMES-MENU:
+  TITLE: '&8{username}''s Homes'
+  SIZE: 54
+  MAX-ITEMS-PER-PAGE: 45
+  HOME-BUTTON:
+    MATERIAL: LIGHT_BLUE_BED
+    DISPLAY-NAME: '&b{name}'
+    LORE:
+    - '&7World: &f{world}'
+    - '&7X: &f{x} &7Y: &f{y} &7Z: &f{z}'
+    - '&aClick to teleport'
+  INVALID-HOME-BUTTON:
+    MATERIAL: BARRIER
+    DISPLAY-NAME: '&c{name}'
+    LORE:
+    - '&7This home points to an unavailable world.'
+  EMPTY-BUTTON:
+    MATERIAL: BARRIER
+    DISPLAY-NAME: '&cNo Homes'
+    LORE:
+    - '&7This player has no homes saved.'
+  BACK-BUTTON:
+    MATERIAL: RED_STAINED_GLASS_PANE
+    DISPLAY-NAME: '&cBack'
+    LORE:
+    - '&7Return to the main profile viewer'
+  CLOSE-BUTTON:
+    MATERIAL: RED_STAINED_GLASS_PANE
+    DISPLAY-NAME: '&cClose'
+    LORE:
+    - '&7Close this home list'
+  REFRESH-BUTTON:
+    MATERIAL: CLOCK
+    DISPLAY-NAME: '&#6BF18DRefresh'
+    LORE:
+    - '&7Reload this player''s homes'
+PUNISHMENT-HISTORY-MENU:
+  TITLE: '&8Punishments ({player})'
+  SIZE: 54
+  MAX-ITEMS-PER-PAGE: 45
+  BUTTONS:
+    BACK:
+      MATERIAL: ARROW
+      DISPLAY-NAME: '&cBack'
+      LORE:
+      - '&7Return to the previous menu'
+    FILTER-STATE:
+      MATERIAL: HOPPER
+      DISPLAY-NAME: '&#6BF18DState Filter'
+      LORE:
+      - '&7Current: &f{state_filter}'
+      - '&aClick to change'
+    FILTER-TYPE:
+      MATERIAL: BOOK
+      DISPLAY-NAME: '&#6BF18DType Filter'
+      LORE:
+      - '&7Current: &f{type_filter}'
+      - '&aClick to change'
+    REFRESH:
+      MATERIAL: CLOCK
+      DISPLAY-NAME: '&#6BF18DRefresh'
+      LORE:
+      - '&7Reload this player''s punishment history'
+  PUNISHMENT-ITEM:
+    MATERIALS:
+      BAN: IRON_BARS
+      MUTE: PAPER
+      VOICE_MUTE: NOTE_BLOCK
+      WARN: YELLOW_DYE
+      KICK: LEATHER_BOOTS
+      BLACKLIST: BARRIER
+    DISPLAY-NAME: '{status_color}{type}'
+    LORE:
+    - '&7Reason: &f{reason}'
+    - '&7Issued by: &f{issuer}'
+    - '&7Date: &f{issued_at}'
+    - '&7Expires: &f{expires_at}'
+    - '&7Status: {status_color}{status}'
+    - '&7Removed by: &f{removed_by}'
+    - '&7Removal reason: &f{removal_reason}'
+    - '&7Removed at: &f{removed_at}'
+    - '&7ID: &f#{id}'
+    - ''
+    - '&cShift-right-click to delete this record'
+  EMPTY-BUTTON:
+    MATERIAL: BARRIER
+    DISPLAY-NAME: '&cNo Punishment History'
+    LORE:
+    - '&7This player has no punishment records.'
+PUNISHMENTS-LIST-MENU:
+  TITLE: '&8All Punishments'
+  SIZE: 54
+  MAX-ITEMS-PER-PAGE: 45
+  BUTTONS:
+    BACK:
+      MATERIAL: ARROW
+      DISPLAY-NAME: '&cClose'
+      LORE:
+      - '&7Close this menu'
+    FILTER-STATE:
+      MATERIAL: HOPPER
+      DISPLAY-NAME: '&#6BF18DState Filter'
+      LORE:
+      - '&7Current: &f{state_filter}'
+      - '&aClick to change'
+    FILTER-TYPE:
+      MATERIAL: BOOK
+      DISPLAY-NAME: '&#6BF18DType Filter'
+      LORE:
+      - '&7Current: &f{type_filter}'
+      - '&aClick to change'
+    SORT:
+      MATERIAL: COMPARATOR
+      DISPLAY-NAME: '&#6BF18DSort Order'
+      LORE:
+      - '&7Current: &f{sort_order}'
+      - '&aClick to change'
+    SEARCH:
+      MATERIAL: NAME_TAG
+      DISPLAY-NAME: '&#6BF18DSearch'
+      LORE:
+      - '&7Current: &f{search}'
+      - '&aLeft-click to search a player'
+      - '&cRight-click to clear'
+    REFRESH:
+      MATERIAL: CLOCK
+      DISPLAY-NAME: '&#6BF18DRefresh'
+      LORE:
+      - '&7Reload the punishment list'
+  SEARCH-SIGN:
+    INPUT-LINE: 0
+    LINES:
+    - ''
+    - '^^^^^^^^^^^^^^'
+    - 'Player Name'
+    - ''
+  PUNISHMENT-ITEM:
+    MATERIALS:
+      BAN: IRON_BARS
+      MUTE: PAPER
+      VOICE_MUTE: NOTE_BLOCK
+      WARN: YELLOW_DYE
+      KICK: LEATHER_BOOTS
+      BLACKLIST: BARRIER
+    DISPLAY-NAME: '{status_color}{player} &8- &f{type}'
+    LORE:
+    - '&7Reason: &f{reason}'
+    - '&7Issued by: &f{issuer}'
+    - '&7Date: &f{issued_at}'
+    - '&7Expires: &f{expires_at}'
+    - '&7Status: {status_color}{status}'
+    - '&7ID: &f#{id}'
+    - ''
+    - '&aLeft-click to view full history'
+    - '&cShift-right-click to delete this record'
+  LOADING-BUTTON:
+    MATERIAL: CLOCK
+    DISPLAY-NAME: '&eLoading Punishments'
+    LORE:
+    - '&7Reading the punishment table.'
+  EMPTY-BUTTON:
+    MATERIAL: BARRIER
+    DISPLAY-NAME: '&cNo Punishments Found'
+    LORE:
+    - '&7No punishments match the current filters.'
+STATS-WIPE-MENU:
+  TITLE: '&8Stats Wipe'
+  SIZE: 27
+  PLACEHOLDER: true
+  PLACEHOLDER-MATERIAL: BLACK_STAINED_GLASS_PANE
+  STATUS:
+    SLOT: 13
+    MATERIAL: BARRIER
+    DISPLAY-NAME: '&cWipe In Progress'
+    LORE:
+    - '&7Another wipe is currently running.'
+    - '&7Wait for it to finish, then refresh.'
+  BUTTONS:
+    PLAYER_STATS:
+      SLOT: 10
+      MATERIAL: PAPER
+      DISPLAY-NAME: '&#6BF18DPlayer Stats'
+      LORE:
+      - '&7Players with tracked stats: &f{count}'
+      - '&cReset kills, deaths, playtime,'
+      - '&cblocks, mobs, streaks, and money flow stats.'
+    TEAM_DOCUMENTS:
+      SLOT: 11
+      MATERIAL: LIGHT_BLUE_BANNER
+      DISPLAY-NAME: '&#6BF18DTeam Documents'
+      LORE:
+      - '&7Teams stored: &f{count}'
+      - '&cDelete all teams and team members.'
+    HOME_DOCUMENTS:
+      SLOT: 12
+      MATERIAL: RED_BED
+      DISPLAY-NAME: '&#6BF18DHome Documents'
+      LORE:
+      - '&7Homes stored: &f{count}'
+      - '&cDelete all saved player homes.'
+    BOUNTIES:
+      SLOT: 14
+      MATERIAL: PLAYER_HEAD
+      DISPLAY-NAME: '&#6BF18DBounties'
+      LORE:
+      - '&7Active bounties: &f{count}'
+      - '&cDelete all active bounties.'
+    SELL_DOCUMENTS:
+      SLOT: 15
+      MATERIAL: CHEST
+      DISPLAY-NAME: '&#6BF18DSell Documents'
+      LORE:
+      - '&7Sell docs stored: &f{count}'
+      - '&cDelete sell history and sell progress.'
+    MONEY:
+      SLOT: 9
+      MATERIAL: GOLD_INGOT
+      DISPLAY-NAME: '&#6BF18DPlayer Money'
+      LORE:
+      - '&7Players with custom balances: &f{count}'
+      - '&cReset all player balances to'
+      - '&cthe default starting money.'
+    SHARDS:
+      SLOT: 16
+      MATERIAL: PRISMARINE_SHARD
+      DISPLAY-NAME: '&#6BF18DPlayer Shards'
+      LORE:
+      - '&7Players with shards: &f{count}'
+      - '&cReset all player shards to 0.'
+    REFRESH:
+      SLOT: 22
+      MATERIAL: CLOCK
+      DISPLAY-NAME: '&#6BF18DRefresh'
+      LORE:
+      - '&7Click to refresh wipe counts.'
+    CLOSE:
+      SLOT: 26
+      MATERIAL: BARRIER
+      DISPLAY-NAME: '&cClose'
+      LORE:
+      - '&7Close this menu.'
+STATS-WIPE-CONFIRM-MENU:
+  TITLE: '&8Confirm {target}'
+  SIZE: 27
+  PLACEHOLDER: true
+  PLACEHOLDER-MATERIAL: BLACK_STAINED_GLASS_PANE
+  BUTTONS:
+    TARGET:
+      SLOT: 13
+      MATERIAL: PAPER
+      DISPLAY-NAME: '&#6BF18D{target}'
+      LORE:
+      - '&7Affected records: &f{count}'
+      - '&cThis action cannot be undone.'
+      - '&7Click confirm only if you are sure.'
+    CANCEL:
+      SLOT: 11
+      MATERIAL: RED_STAINED_GLASS_PANE
+      DISPLAY-NAME: '&cCancel'
+      LORE:
+      - '&7Return to the Stats Wipe menu.'
+    CONFIRM:
+      SLOT: 15
+      MATERIAL: LIME_STAINED_GLASS_PANE
+      DISPLAY-NAME: '&aConfirm'
+      LORE:
+      - '&7Run wipe for &f{target}&7.'
+      - '&7Affected records: &f{count}'
+SERVERS-MENU:
+  TITLE: '&8Ongoing Servers'
+  SIZE: 27
+  REFRESH-TICKS: 40
+  PLACEHOLDER-MATERIAL: BLACK_STAINED_GLASS_PANE
+  SERVER_STATUS:
+    TITLE: '&8Ongoing Servers'
+    SERVER_NAME: '&b%server%'
+    LORE:
+    - '&8&m---------------------'
+    - '&bStatus: %status%'
+    - '&aPlayers: &a%players% online'
+    - '&eSoftware: &a%software%'
+    - '&6Performance: %performance%'
+    - '&8&m---------------------'
+    MATERIALS:
+      ONLINE: LIME_CONCRETE
+      OFFLINE: RED_CONCRETE
+  SERVERS:
+    crystal:
+      SLOT: 13
+
+SPAWNER-MENUS:
+  MAIN-MENU:
+    TITLE: '{stack} {mob}'
+    SIZE: 27
+    FILLER-MATERIAL: GRAY_STAINED_GLASS_PANE
+    STORAGE-BUTTON:
+      SLOT: 11
+      MATERIAL: CHEST
+      TITLE: '&6Spawner Storage'
+      NO-ITEMS-LORE:
+      - '&7No items stored.'
+      ITEM-SUMMARY-FORMAT: '&6{amount} &f{material}'
+      MORE-ITEMS-FORMAT: '&7+ {count} more item types...'
+      FOOTER-LORE:
+      - ''
+      - '&eClick to view & collect spawner storage'
+    MOB-HEAD-BUTTON:
+      SLOT: 13
+      TITLE: '&e{stack} {mob} SPAWNERS'
+      LORE:
+      - '&e• &fClick to sell items and collect xp'
+      - '&7Storage: &e{percentage}% Filled.'
+    COLLECT-XP-BUTTON:
+      ENABLED: true
+      SLOT: 15
+      MATERIAL: EXPERIENCE_BOTTLE
+      TITLE: '&aCollect XP'
+      LORE:
+      - '&a{xp} &fXP Points'
+      - ''
+      - '&eClick to claim XP points'
+  STORAGE-MENU:
+    TITLE: '&8{mob} Spawners - {page}/{max_page}'
+    SIZE: 54
+    ITEMS-PER-PAGE: 45
+    ITEM-META:
+      TITLE: '&b{material}'
+      LORE:
+      - '&7Filter Status: {filter_status}'
+      - ''
+      - '&eLeft-Click &7to pick up'
+      - '&eRight-Click &7to pick up half / place 1'
+      - '&eShift-Left &7to collect to inventory'
+      - '&eShift-Right &7to toggle filter'
+      FILTER-ENABLED: '&aEnabled &7(Storing)'
+      FILTER-DISABLED: '&cDisabled &7(Not Storing)'
+    BACK-BUTTON:
+      SLOT: 45
+      MATERIAL: BARRIER
+      TITLE: '&cBACK'
+      LORE:
+      - '&7Return to spawner menu.'
+    FILTER-SETTINGS-BUTTON:
+      SLOT: 46
+      MATERIAL: HOPPER
+      TITLE: '&bFILTER SETTINGS'
+      LORE:
+      - '&7Manage item drops filter.'
+      - ''
+      - '&eClick to open filter settings'
+    COLLECT-ALL-BUTTON:
+      SLOT: 48
+      MATERIAL: SPECTRAL_ARROW
+      TITLE: '&eCOLLECT ALL'
+      LORE:
+      - '&e• &fCollect all loot from storage into inventory'
+    PREVIOUS-PAGE-BUTTON:
+      SLOT: 49
+      MATERIAL: ARROW
+      TITLE: '&aPREVIOUS PAGE'
+      LORE:
+      - '&fClick to go back to page {prev_page}'
+    NEXT-PAGE-BUTTON:
+      SLOT: 51
+      MATERIAL: ARROW
+      TITLE: '&aNEXT PAGE'
+      LORE:
+      - '&fClick to go to page {next_page}'
+    DROP-LOOT-BUTTON:
+      SLOT: 52
+      MATERIAL: DROPPER
+      TITLE: '&aDROP LOOT'
+      LORE:
+      - '&fClick to drop all loot on the page'
+    SELL-ALL-BUTTON:
+      SLOT: 53
+      MATERIAL: GOLD_INGOT
+      TITLE: '&aSELL ALL'
+      LORE:
+      - '&fClick to sell all mob drops!'
+  FILTER-MENU:
+    TITLE: '&8{mob} Filter Settings'
+    SIZE: 27
+    ITEM-META:
+      TITLE: '&b{material}'
+      LORE:
+      - '&7Filter Status: {filter_status}'
+      - '&7Drop Chance: &e{chance}%'
+      - ''
+      - '&eClick &7to toggle filter'
+      FILTER-ENABLED: '&aEnabled &7(Storing)'
+      FILTER-DISABLED: '&cDisabled &7(Not Storing)'
+    BACK-BUTTON:
+      SLOT: 18
+      MATERIAL: BARRIER
+      TITLE: '&cBACK'
+      LORE:
+      - '&7Return to storage menu.'
+    ENABLE-ALL-BUTTON:
+      SLOT: 25
+      MATERIAL: LIME_DYE
+      TITLE: '&aENABLE ALL'
+      LORE:
+      - '&7Enable storing all drops.'
+    DISABLE-ALL-BUTTON:
+      SLOT: 26
+      MATERIAL: RED_DYE
+      TITLE: '&cDISABLE ALL'
+      LORE:
+      - '&7Disable storing all drops.'
+  SELL-CONFIRM-MENU:
+    TITLE: '&8Confirm Sell'
+    SIZE: 27
+    CONFIRM-BUTTON:
+      SLOT: 11
+      MATERIAL: LIME_STAINED_GLASS_PANE
+      TITLE: '&aConfirm Sell'
+      LORE:
+      - '&fTotal Value: &a₵{price}'
+      - '&7Category Multiplier: &e{multiplier}x'
+      - ''
+      - '&eClick to confirm sale!'
+    CANCEL-BUTTON:
+      SLOT: 15
+      MATERIAL: RED_STAINED_GLASS_PANE
+      TITLE: '&cCancel'
+      LORE:
+      - '&7Cancel transaction and return to storage.'
+    INFO-ICON:
+      SLOT: 13
+      MATERIAL: GOLD_INGOT
+      TITLE: '&eSell Summary'
+      LORE:
+      - '&fEstimated Total: &a₵{price}'
+      - '&7Total Items: &f{item_count}'
+  PANEL-MENU:
+    TITLE: '&8Spawners'
+    SIZE: 54
+  WORLD-LIST-MENU:
+    TITLE: '&8Spawners Panel'
+    SIZE: 27
+
+VOICE-CHAT-CONSENT-MENU:
+  TITLE: '&8Confirm Voice Chat'
+  SIZE: 27
+  INFO-BUTTON:
+    DISPLAY-NAME: '&bVoice Chat Policy'
+    MATERIAL: JUKEBOX
+    SLOT: 13
+    LORE:
+    - '&7Your voice is recorded while you are'
+    - '&7talking in a voice channel.'
+    - ''
+    - '&7Recordings are thrown away unless somebody'
+    - '&7reports you. A reported recording is kept'
+    - '&7as proof for a mute or a ban, and the'
+    - '&7moderation team reviews it.'
+    - ''
+    - '&7You have to be 13 or older to talk.'
+    - ''
+    - '&7Changed your mind later? Run'
+    - '&f/voicechatconsent revoke'
+  CONFIRM-BUTTON:
+    DISPLAY-NAME: '&aConfirm'
+    MATERIAL: LIME_STAINED_GLASS_PANE
+    SLOT: 11
+    LORE:
+    - '&fClick to turn voice chat on'
+  DECLINE-BUTTON:
+    DISPLAY-NAME: '&cDecline'
+    MATERIAL: RED_STAINED_GLASS_PANE
+    SLOT: 15
+    LORE:
+    - '&fVoice chat will stay disabled'

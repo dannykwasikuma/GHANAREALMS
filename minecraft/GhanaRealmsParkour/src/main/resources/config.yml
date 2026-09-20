@@ -1,0 +1,33 @@
+GENERAL:
+  CHECKPOINT-RADIUS: 1.5
+  REWARD-MONEY-ON-FINISH: 100
+  # Only reward money the FIRST time a player finishes a course (repeat runs
+  # for leaderboard/personal-best chasing don't re-pay - stops money farming
+  # by just running the same easy course over and over).
+  REWARD-ONCE-PER-PLAYER: true
+
+MESSAGES:
+  STARTED: '&aParkour started: &f{course}&a. Good luck!'
+  CHECKPOINT: '&7Checkpoint &f{index}&7/&f{total}'
+  FINISHED: '&6&lCourse complete! &f{course} &7in &e{time}&7. Best: &e{best}'
+  FINISHED-FIRST-TIME: '&a+\u20B5{reward} &7(first clear bonus)'
+  LEFT: '&7Left the course.'
+  NO-ACTIVE-RUN: '&cYou are not currently running a course.'
+  UNKNOWN-COURSE: '&cUnknown course.'
+  TOP-HEADER: '&6&lTop times: {course}'
+  TOP-ENTRY: '&f{rank}. {player} &7- &e{time}'
+  NO-TIMES: '&7No times recorded yet for this course.'
+
+# Example course - replace/extend once the actual Lobby build has parkour
+# structures in place. Coordinates here are placeholders, not real Lobby
+# coordinates (I don't have the Lobby's actual layout - you have that world).
+COURSES:
+  EXAMPLE:
+    DISPLAY-NAME: '&bExample Course'
+    WORLD: world
+    START: {X: 0.5, Y: 65, Z: 0.5}
+    FINISH: {X: 0.5, Y: 65, Z: 50.5, RADIUS: 2}
+    CHECKPOINTS:
+      - {X: 0.5, Y: 65, Z: 10.5}
+      - {X: 0.5, Y: 65, Z: 25.5}
+      - {X: 0.5, Y: 65, Z: 40.5}

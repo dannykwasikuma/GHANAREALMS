@@ -1,0 +1,23 @@
+name: GhanaRealmsQuests
+version: '${project.version}'
+main: com.ghanarealms.quests.GhanaRealmsQuests
+api-version: '1.21'
+author: GhanaRealms
+description: Daily and weekly Ghanaian-themed quests for GhanaRealms SMP
+softdepend: [Vault]
+
+commands:
+  quests:
+    description: View your active quests and progress
+    usage: /quests
+    permission: ghanarealmsquests.use
+  questadmin:
+    description: Reload quest definitions / force a reset (admin)
+    usage: /questadmin <reload|resetall>
+    permission: ghanarealmsquests.admin
+
+permissions:
+  ghanarealmsquests.use:
+    default: true
+  ghanarealmsquests.admin:
+    default: op

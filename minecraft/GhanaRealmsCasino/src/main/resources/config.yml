@@ -1,0 +1,15 @@
+GENERAL:
+  MIN-WAGER: 10
+  MAX-WAGER: 100000
+  CHALLENGE-TIMEOUT-SECONDS: 60
+
+MESSAGES:
+  CHALLENGE-SENT: '&aChallenge sent to {opponent} for &6₵{amount}&a. They have {timeout}s to /oware accept.'
+  CHALLENGE-RECEIVED: '&e{challenger} has challenged you to Oware for &6₵{amount}&e! Type &f/oware accept {challenger}&e to play.'
+  CHALLENGE-EXPIRED: '&cChallenge expired.'
+  INSUFFICIENT-FUNDS: '&cYou do not have enough money for that wager.'
+  GAME-STARTED: '&aOware match started! &7It is {turn}''s turn.'
+  NOT-YOUR-TURN: '&cIt is not your turn.'
+  EMPTY-PIT: '&cThat pit is empty.'
+  GAME-WON: '&a{winner} wins the Oware match and &6₵{pot}&a!'
+  FORFEITED: '&c{player} forfeited the match. {winner} wins &6₵{pot}&a.'

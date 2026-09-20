@@ -1,0 +1,76 @@
+# ==============================================================================
+# GhanaRealmsQuests - quest definitions
+# ==============================================================================
+# OBJECTIVE TYPES:
+#   BREAK_BLOCK    - MATERIAL, AMOUNT
+#   FISH           - AMOUNT (any catch)
+#   KILL_ENTITY    - ENTITY-TYPE, AMOUNT
+#   VISIT_REGION   - WORLD, X, Y, Z, RADIUS  (matches the Survival-world
+#                    landmarks built for GhanaRealms - see their coordinates
+#                    file for the source of these numbers)
+#   WALK_DISTANCE  - BLOCKS
+
+RESET:
+  DAILY-HOUR-UTC: 0
+  WEEKLY-DAY: MONDAY
+
+DAILY:
+  COCOA_HARVEST:
+    DISPLAY-NAME: '&6Cocoa Harvest'
+    DESCRIPTION: 'Harvest cocoa pods for the grove near the coast.'
+    TYPE: BREAK_BLOCK
+    MATERIAL: COCOA
+    AMOUNT: 16
+    REWARD-MONEY: 500
+
+  MARKET_FISH:
+    DISPLAY-NAME: '&bCatch of the Day'
+    DESCRIPTION: 'Catch fish to sell at the fishing village.'
+    TYPE: FISH
+    AMOUNT: 5
+    REWARD-MONEY: 300
+
+  VISIT_MARKET:
+    DISPLAY-NAME: '&eMarket Run'
+    DESCRIPTION: 'Visit the GhanaRealms market.'
+    TYPE: VISIT_REGION
+    WORLD: GhanaRealms-Survival
+    X: -40
+    Y: 75
+    Z: -95
+    RADIUS: 20
+    REWARD-MONEY: 200
+
+WEEKLY:
+  DURBAR_PILGRIMAGE:
+    DISPLAY-NAME: '&dDurbar Pilgrimage'
+    DESCRIPTION: 'Attend the Durbar Grounds at least once this week.'
+    TYPE: VISIT_REGION
+    WORLD: GhanaRealms-Survival
+    X: -122
+    Y: 63
+    Z: -62
+    RADIUS: 20
+    REWARD-MONEY: 1500
+
+  CHIEFS_TRIBUTE:
+    DISPLAY-NAME: "&6Chief's Tribute"
+    DESCRIPTION: "Visit the Chief's Palace and mine 64 stone in tribute."
+    TYPE: BREAK_BLOCK
+    MATERIAL: STONE
+    AMOUNT: 64
+    REWARD-MONEY: 2000
+
+  FORT_DEFENDER:
+    DISPLAY-NAME: '&cFort Defender'
+    DESCRIPTION: 'Defeat 20 hostile mobs to defend the coastal fort.'
+    TYPE: KILL_ENTITY
+    ENTITY-TYPE: ANY_HOSTILE
+    AMOUNT: 20
+    REWARD-MONEY: 2500
+
+MESSAGES:
+  PROGRESS: '&7[Quest] &f{quest}: &e{progress}&7/&e{target}'
+  COMPLETED: '&a[Quest] Completed &f{quest}&a! Reward: &6₵{reward}'
+  ALREADY-COMPLETED: '&7You already completed &f{quest}&7 this cycle.'
+  LIST-HEADER: '&6&lYour GhanaRealms Quests'

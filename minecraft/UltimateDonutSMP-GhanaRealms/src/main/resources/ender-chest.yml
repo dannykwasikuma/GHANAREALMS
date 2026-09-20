@@ -1,0 +1,65 @@
+# Configuration section for Ender Chest.
+ENDER-CHEST:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # Rows every player gets when no ROW-PERMISSIONS entry applies to them
+  # 6 rows is 54 slots, already the largest a chest can be, so lower this if you want
+  # ROW-PERMISSIONS below to hand out bigger chests as a rank perk
+  # Available options: 1 to 6
+  DEFAULT-ROWS: 6
+  TITLE: '&5Ender Chest'
+  # Determines whether Intercept Vanilla Open is enabled or disabled. Available options: true, false
+  INTERCEPT-VANILLA-OPEN: true
+  # Determines whether Allow Command is enabled or disabled. Available options: true, false
+  ALLOW-COMMAND: true
+  # Determines whether Command Requires Permission is enabled or disabled. Available options: true, false
+  COMMAND-REQUIRES-PERMISSION: false
+  # The text or value for Permission. Available options: Any valid string text
+  PERMISSION: ultimatedonutsmp.enderchest
+  # The numerical value for Auto Save Ticks. Available options: Any valid integer
+  AUTO-SAVE-TICKS: 1200
+  # Per-rank Ender Chest size resolved from permissions
+  ROW-PERMISSIONS:
+    # Enable or disable permission based Ender Chest sizes
+    ENABLED: true
+    # What happens when a player's permissions no longer cover the size their chest was saved at,
+    # for example after a rank expires
+    # KEEP-SIZE keeps the chest at the larger size so nothing can be lost
+    # RETURN-ITEMS shrinks the chest and hands back everything that no longer fits
+    # Available options: KEEP-SIZE, RETURN-ITEMS
+    ON-DOWNGRADE: KEEP-SIZE
+    # Explicit mapping from permission node to Ender Chest rows
+    # Players can also be given ultimatedonutsmp.enderchest.rows.<1-6> directly, for example
+    # ultimatedonutsmp.enderchest.rows.4 for a 36 slot chest
+    # The highest value the player has wins
+    # Players without any of these permissions keep DEFAULT-ROWS above
+    PERMISSIONS:
+      "ultimatedonutsmp.enderchest.rows.vip++": 6
+      "ultimatedonutsmp.enderchest.rows.vip+": 5
+      "ultimatedonutsmp.enderchest.rows.vip": 4
+  # Configuration section for Ecsee.
+  ECSEE:
+    # Determines whether Enabled is enabled or disabled. Available options: true, false
+    ENABLED: true
+    # The text or value for Permission. Available options: Any valid string text
+    PERMISSION: ultimatedonutsmp.admin.ecsee
+    # The numerical value for Auto Refresh Ticks. Available options: Any valid integer
+    AUTO-REFRESH-TICKS: 20
+    # Determines whether staff can edit other players' ender chests. Available options: true, false
+    EDITABLE: false
+MESSAGES:
+  # The text or value for Feature Disabled. Available options: Any valid string text
+  FEATURE-DISABLED: '&cThe Ender Chest 6 Rows system is disabled.'
+  # The text or value for Command Disabled. Available options: Any valid string text
+  COMMAND-DISABLED: '&cThe /enderchest command is disabled.'
+  # The text or value for No Permission. Available options: Any valid string text
+  NO-PERMISSION: '&cYou do not have permission to use this command.'
+  # The text or value for Open Failed. Available options: Any valid string text
+  OPEN-FAILED: '&cFailed to open your Ender Chest. Please try again.'
+  # The text or value for Save Failed. Available options: Any valid string text
+  SAVE-FAILED: '&cFailed to save your Ender Chest. Contact staff.'
+  # The text or value for Reload Success. Available options: Any valid string text
+  RELOAD-SUCCESS: '&aEnder Chest config reloaded.'
+  # Shown when a chest shrinks and the items that no longer fit are handed back
+  # The text or value for Rows Downgraded. Available options: Any valid string text
+  ROWS-DOWNGRADED: '&eYour Ender Chest is now {rows} rows. {amount} item(s) that no longer fit were returned to you.'

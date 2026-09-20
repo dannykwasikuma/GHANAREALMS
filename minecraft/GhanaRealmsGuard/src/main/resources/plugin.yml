@@ -1,0 +1,24 @@
+name: GhanaRealmsGuard
+version: '${project.version}'
+main: com.ghanarealms.guard.GhanaRealmsGuard
+api-version: '1.21'
+author: GhanaRealms
+description: >
+  Basic movement-sanity checks (obvious speed/flight/reach outliers).
+  This is NOT anticheat-grade - no movement prediction, no packet
+  analysis, trivially bypassed by anyone who tries. It catches blatant,
+  unsophisticated cases only. Use Grim or Vulcan for real protection;
+  see GHANAREALMS-SMP/README.md for why those couldn't be built here.
+
+commands:
+  guardadmin:
+    description: View or clear flagged players
+    usage: /guardadmin <flags|clear> [player]
+    permission: ghanarealmsguard.admin
+
+permissions:
+  ghanarealmsguard.admin:
+    default: op
+  ghanarealmsguard.bypass:
+    description: Exempts a player from all checks (use for known-legit staff/testers)
+    default: op

@@ -1,0 +1,26 @@
+GENERAL:
+  TRIGGER-LINE: '[shop]'
+  MAX-PRICE: 1000000
+
+MESSAGES:
+  HELP:
+    - '&6&lGhanaRealms Sign Shops'
+    - '&71. Place a chest, put items in it.'
+    - '&72. Hold the item you want to sell, place a sign touching the chest.'
+    - '&73. Line 1: &f[shop]'
+    - '&74. Line 2: &fquantity per trade &7(e.g. 64)'
+    - '&75. Line 3: &fB<price> &7to sell to buyers, &fS<price> &7to buy from sellers, or &fB<price>/S<price> &7for both'
+    - '&76. Right-click the sign to buy, shift-right-click to sell.'
+  SHOP-CREATED: '&aShop created for &f{amount}x {item} &7(Buy: {buy}, Sell: {sell})'
+  NO-CHEST-FOUND: '&cThat sign must touch a chest.'
+  INVALID-FORMAT: '&cInvalid shop sign. Line 3 must be like B10 or S5 or B10/S5.'
+  BUY-SUCCESS: '&aBought &f{amount}x {item} &afor &6\u20B5{price}&a.'
+  SELL-SUCCESS: '&aSold &f{amount}x {item} &afor &6\u20B5{price}&a.'
+  BUY-DISABLED: '&cThis shop is not selling.'
+  SELL-DISABLED: '&cThis shop is not buying.'
+  SHOP-OUT-OF-STOCK: '&cShop is out of stock.'
+  SHOP-CHEST-FULL: '&cShop chest cannot accept those items right now.'
+  BUYER-INSUFFICIENT-FUNDS: '&cYou cannot afford that.'
+  OWNER-INSUFFICIENT-FUNDS: '&cThe shop owner cannot afford to buy that from you right now.'
+  YOU-DONT-HAVE-ITEMS: '&cYou do not have enough of that item to sell.'
+  CANNOT-BUY-OWN-SHOP: '&cYou cannot trade with your own shop.'

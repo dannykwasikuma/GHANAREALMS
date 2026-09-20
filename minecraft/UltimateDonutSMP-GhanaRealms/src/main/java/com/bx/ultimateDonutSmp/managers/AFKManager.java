@@ -1,0 +1,192 @@
+package com.bx.ultimateDonutSmp.managers;
+
+import com.bx.ultimateDonutSmp.UltimateDonutSmp;
+import com.bx.ultimateDonutSmp.utils.ColorUtils;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.entity.Player;
+
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class AFKManager {
+
+    private final UltimateDonutSmp plugin;
+    private final Map<UUID, Long> lastMovement = new ConcurrentHashMap<>();
+    private final Set<UUID> afkPlayers = ConcurrentHashMap.newKeySet();
+
+    public AFKManager(UltimateDonutSmp plugin) {
+        this.plugin = plugin;
+    }
+
+    public boolean isEnabled() {
+        return plugin.getFeatureManager().isEnabled(FeatureManager.Feature.AFK)
+                && plugin.getConfigManager().getConfig()
+                .getBoolean("AFK-SYSTEM.ENABLED", true);
+    }
+
+    public int getTimeoutSeconds() {
+        return plugin.getConfigManager().getConfig()
+                .getInt("AFK-SYSTEM.TIME", 180);
+    }
+
+    public String getSpawnCuboidName() {
+        return plugin.getConfigManager().getConfig()
+                .getString("AFK-SYSTEM.SPAWN-CUBOID-NAME", "spawn");
+    }
+
+    private Set<String> cachedTrackedCuboidNames;
+
+    public void clearCache() {
+        cachedTrackedCuboidNames = null;
+    }
+
+    public Set<String> getTrackedSpawnCuboidNames() {
+        if (cachedTrackedCuboidNames != null) {
+            return cachedTrackedCuboidNames;
+        }
+
+        LinkedHashSet<String> cuboidNames = new LinkedHashSet<>(
+                plugin.getSpawnManager().getAreaCuboidNames(SpawnManager.AreaType.SPAWN)
+        );
+        if (cuboidNames.isEmpty()) {
+            String legacy = getSpawnCuboidName();
+            if (legacy != null && !legacy.isBlank()) {
+                cuboidNames.add(legacy.toLowerCase());
+            }
+        }
+        Set<String> unmodifiable = Set.copyOf(cuboidNames);
+        cachedTrackedCuboidNames = unmodifiable;
+        return unmodifiable;
+    }
+
+    public void recordMovement(UUID uuid) {
+        lastMovement.put(uuid, System.currentTimeMillis());
+        afkPlayers.remove(uuid);
+    }
+
+    public void trackPlayer(Player player) {
+        lastMovement.put(player.getUniqueId(), System.currentTimeMillis());
+    }
+
+    public void removePlayer(UUID uuid) {
+        lastMovement.remove(uuid);
+        afkPlayers.remove(uuid);
+    }
+
+    public boolean isAfk(UUID uuid) {
+        return afkPlayers.contains(uuid);
+    }
+
+    public boolean shouldGoAfk(UUID uuid) {
+        return shouldGoAfk(uuid, getTimeoutSeconds());
+    }
+
+    public boolean shouldGoAfk(UUID uuid, int timeoutSeconds) {
+        Long last = lastMovement.get(uuid);
+        if (last == null) {
+            return false;
+        }
+        return (System.currentTimeMillis() - last) >= (timeoutSeconds * 1000L);
+    }
+
+    public boolean hasRecentMovement(UUID uuid, int windowSeconds) {
+        if (windowSeconds <= 0) {
+            return true;
+        }
+
+        Long last = lastMovement.get(uuid);
+        if (last == null) {
+            return false;
+        }
+        return (System.currentTimeMillis() - last) <= (windowSeconds * 1000L);
+    }
+
+    public long getSecondsSinceLastMovement(UUID uuid) {
+        Long last = lastMovement.get(uuid);
+        if (last == null) {
+            return Long.MAX_VALUE;
+        }
+        return Math.max(0L, (System.currentTimeMillis() - last) / 1000L);
+    }
+
+    public void sendToAfk(Player player) {
+        sendToAfk(player, resolveAutomaticAfkLocation(), plugin.getConfigManager().getConfig()
+                .getString("AFK-SYSTEM.MESSAGE",
+                        "&7you have been moved to the afk area for being inactive in the spawn."));
+    }
+
+    public Location resolveAutomaticAfkLocation() {
+        Location areaDestination = plugin.getSpawnManager().getRandomAreaDestination(SpawnManager.AreaType.AFK);
+        if (areaDestination != null) {
+            return areaDestination;
+        }
+        return plugin.getSpawnManager().getAfkLocation();
+    }
+
+    public void sendToAfk(Player player, Location afkLoc, String message) {
+        afkPlayers.add(player.getUniqueId());
+        if (afkLoc != null) {
+            plugin.getSpigotScheduler().teleport(player, afkLoc).thenRun(() ->
+                    plugin.getSpigotScheduler().runEntity(player, () -> sendAfkMessage(player, message)));
+            return;
+        }
+        sendAfkMessage(player, message);
+    }
+
+    private void sendAfkMessage(Player player, String message) {
+        if (message != null && !message.isBlank()) {
+            player.sendMessage(ColorUtils.toComponent(message));
+        }
+    }
+
+    public boolean isInSpawnCuboid(Player player) {
+        Set<String> cuboidNames = getTrackedSpawnCuboidNames();
+        if (cuboidNames.isEmpty()) {
+            return false;
+        }
+        return plugin.getCuboidManager().isInAnyCuboid(player, cuboidNames.toArray(String[]::new));
+    }
+
+    public Set<UUID> getAfkPlayers() {
+        return Set.copyOf(afkPlayers);
+    }
+
+    public int getAfkPlayerCount() {
+        if (Bukkit.getServer() == null) {
+            return afkPlayers.size();
+        }
+
+        int count = 0;
+        Set<String> afkCuboids = plugin.getSpawnManager() != null
+                ? plugin.getSpawnManager().getAreaCuboidNames(SpawnManager.AreaType.AFK)
+                : Set.of();
+        String[] afkCuboidArray = afkCuboids.isEmpty() ? new String[0] : afkCuboids.toArray(String[]::new);
+        Location afkLocation = plugin.getSpawnManager() != null
+                ? plugin.getSpawnManager().getAfkLocation()
+                : null;
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (isAfk(player.getUniqueId())) {
+                count++;
+                continue;
+            }
+            if (afkCuboidArray.length > 0 && plugin.getCuboidManager() != null
+                    && plugin.getCuboidManager().isInAnyCuboid(player, afkCuboidArray)) {
+                count++;
+                continue;
+            }
+            if (afkCuboidArray.length == 0 && afkLocation != null && afkLocation.getWorld() != null) {
+                Location loc = player.getLocation();
+                if (loc.getWorld() != null && loc.getWorld().equals(afkLocation.getWorld())
+                        && loc.distanceSquared(afkLocation) <= 225.0D) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+}

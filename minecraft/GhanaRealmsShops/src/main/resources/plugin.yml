@@ -1,0 +1,19 @@
+name: GhanaRealmsShops
+version: '${project.version}'
+main: com.ghanarealms.shops.GhanaRealmsShops
+api-version: '1.21'
+author: GhanaRealms
+description: Sign-based player shops attached to chests - distinct from UltimateDonutSMP's global auction house
+softdepend: [Vault]
+
+commands:
+  shophelp:
+    description: How to create a sign shop
+    usage: /shophelp
+    permission: ghanarealmsshops.use
+
+permissions:
+  ghanarealmsshops.use:
+    default: true
+  ghanarealmsshops.create:
+    default: true

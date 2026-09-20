@@ -1,0 +1,58 @@
+# ==============================================================================
+# GhanaRealmsPaystack Configuration
+# ==============================================================================
+# Get your keys from https://dashboard.paystack.com/#/settings/developer
+# NEVER commit or share your SECRET key. Use the TEST keys (sk_test_.../pk_test_...)
+# until you've confirmed checkout + webhook flow works end to end.
+
+PAYSTACK:
+  SECRET-KEY: 'sk_test_REPLACE_ME'
+  PUBLIC-KEY: 'pk_test_REPLACE_ME'
+  CURRENCY: 'GHS'
+  # Base URL of your own web page that hosts the Paystack checkout button/redirect.
+  # This plugin only INITIALIZES the transaction and gives the player a link + a
+  # reference code to run /buy confirm with; it does not render a checkout page
+  # itself (Minecraft can't open a browser for the player). See the README.
+  CALLBACK-URL: 'https://your-website.example/ghanarealms/payment-complete'
+
+WEBHOOK:
+  # A lightweight built-in HTTP server (JDK's com.sun.net.httpserver - no extra
+  # dependency) that listens for Paystack's webhook POST on this port/path.
+  # Your firewall/reverse proxy must forward external traffic to this port.
+  ENABLED: true
+  PORT: 8085
+  PATH: '/ghanarealms/paystack/webhook'
+
+PACKAGES:
+  STARTER:
+    PRICE-GHS: 20
+    DISPLAY-NAME: '&aStarter Pack'
+    GIVE-MONEY: 5000
+    COMMANDS: []
+  VIP:
+    PRICE-GHS: 50
+    DISPLAY-NAME: '&6VIP Rank'
+    GIVE-MONEY: 15000
+    COMMANDS:
+      - 'lp user {player} parent add vip'
+  CHAMPION:
+    PRICE-GHS: 150
+    DISPLAY-NAME: '&dChampion Rank'
+    GIVE-MONEY: 50000
+    COMMANDS:
+      - 'lp user {player} parent add champion'
+
+DATABASE:
+  # SQLite file, relative to the plugin's data folder. Swap for a real DB driver
+  # yourself if you outgrow SQLite - the schema is documented in the README.
+  FILE: 'purchases.db'
+
+MESSAGES:
+  CHECKOUT-CREATED:
+    - '&aCheckout created! Reference: &f{reference}'
+    - '&aComplete payment here: &f{authorization_url}'
+    - '&7Once paid, Paystack notifies the server automatically - no need to run anything else.'
+  PAYMENT-SUCCESS: '&aPayment confirmed! Thank you for supporting GhanaRealms, {player}.'
+  PAYMENT-FAILED: '&cPayment failed or was not completed.'
+  DUPLICATE-TRANSACTION: '&cThis transaction has already been processed.'
+  UNKNOWN-PACKAGE: '&cUnknown package. Use /buy to see available packages.'

@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0c0f0b;
+  --foreground: #f5f1e8;
+
+  /* Ghana flag palette, used as the actual design language throughout,
+     not just decoration - section 1's "not merely decorative" */
+  --gr-red: #ce1126;
+  --gr-gold: #fcd116;
+  --gr-green: #006b3f;
+  --gr-black: #0c0f0b;
+  --gr-ivory: #f5f1e8;
+
+  --card-bg: #14180f;
+  --card-border: #26301f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-gr-red: var(--gr-red);
+  --color-gr-gold: var(--gr-gold);
+  --color-gr-green: var(--gr-green);
+  --color-gr-black: var(--gr-black);
+  --color-gr-ivory: var(--gr-ivory);
+  --color-card-bg: var(--card-bg);
+  --color-card-border: var(--card-border);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  background-image:
+    radial-gradient(circle at 15% 10%, rgba(252, 209, 22, 0.06), transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(206, 17, 38, 0.06), transparent 40%);
+}
+
+.kente-stripe {
+  height: 6px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--gr-red) 0 24px,
+    var(--gr-gold) 24px 48px,
+    var(--gr-green) 48px 72px,
+    var(--gr-black) 72px 96px
+  );
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+}
