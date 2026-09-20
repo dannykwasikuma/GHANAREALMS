@@ -1,4 +1,5 @@
 # GhanaRealms SMP
+> Ghanaian Minecraft Network - web store + game server plugins
 
 A strictly Ghanaian-themed Minecraft Paper SMP: Ghana-flag branding, Cedi
 currency, Ghanaian-inspired worlds, and its own Paystack payment plugin.
