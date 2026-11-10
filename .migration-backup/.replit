@@ -1,0 +1,4 @@
+modules = ["java-graalvm22.3", "bash", "nodejs-20", "python-3.12"]
+
+[nix]
+channel = "stable-25_05"
