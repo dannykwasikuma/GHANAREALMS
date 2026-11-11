@@ -1,0 +1,3 @@
+BRIDGE:
+  STORE-BASE-URL: "https://your-store.example.com"
+  BRIDGE-SECRET: "change-me"   # must equal MINECRAFT_BRIDGE_SECRET on the store

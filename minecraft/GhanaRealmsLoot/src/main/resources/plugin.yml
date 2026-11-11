@@ -1,0 +1,13 @@
+name: GhanaRealmsLoot
+version: '${project.version}'
+main: com.ghanarealms.loot.GhanaRealmsLoot
+api-version: '1.21'
+author: GhanaRealms
+description: Random rarity-tiered loot chests that appear across survival worlds
+commands:
+  lootchest:
+    description: Loot chest admin (spawn/list/clear/reload)
+    usage: /lootchest <spawn [RARITY]|list|clear|reload>
+    permission: ghanarealmsloot.admin
+permissions:
+  ghanarealmsloot.admin: {description: Manage loot chests, default: op}

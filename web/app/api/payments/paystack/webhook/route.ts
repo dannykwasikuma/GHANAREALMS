@@ -1,3 +1,4 @@
+import { closePendingOrder } from '@/lib/catalogue';
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { verifyWebhookSignature, verifyTransaction } from '@/lib/paystack';
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     if (!verification.ok || verification.status !== 'success') {
       await client.query(`UPDATE payments SET status = 'FAILED' WHERE id = $1`, [paymentRow.id]);
-      await client.query(`UPDATE orders SET status = 'FAILED', updated_at = now() WHERE id = $1`, [paymentRow.order_id]);
+      await closePendingOrder(client, paymentRow.order_id, 'FAILED'); // also releases reserved stock
       await client.query('COMMIT');
       return NextResponse.json({ received: true });
     }

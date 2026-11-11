@@ -1,0 +1,14 @@
+name: GhanaRealmsClans
+version: '${project.version}'
+main: com.ghanarealms.clans.GhanaRealmsClans
+api-version: '1.21'
+author: GhanaRealms
+description: Clans plus weekly/monthly clan voting synced to the GhanaRealms store
+commands:
+  clan:
+    description: Manage your clan
+    usage: /clan <create|invite|accept|leave|disband|info> [args]
+  clanvote:
+    description: Vote for a clan in the current weekly and monthly periods
+    usage: /clanvote <clanTag>
+permissions: {}

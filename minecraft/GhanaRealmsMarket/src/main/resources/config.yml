@@ -1,0 +1,1 @@
+BLOCKS-PER-TICK: 6000     # build speed; lower it if the server lags while building

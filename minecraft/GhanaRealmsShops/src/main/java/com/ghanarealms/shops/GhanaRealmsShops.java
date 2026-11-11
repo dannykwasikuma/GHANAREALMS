@@ -18,6 +18,14 @@ public class GhanaRealmsShops extends JavaPlugin {
         setupVault();
 
         Bukkit.getPluginManager().registerEvents(new ShopListener(this, store, economy), this);
+
+        // Walk-in server shops: registered chests open a buy/sell menu (unlimited stock, Vault money).
+        ServerShops serverShops = new ServerShops(this);
+        ServerShopListener serverListener = new ServerShopListener(this, serverShops, economy);
+        Bukkit.getPluginManager().registerEvents(serverListener, this);
+        var serverShopCmd = new ServerShopCommand(this, serverShops, store, serverListener);
+        getCommand("servershop").setExecutor(serverShopCmd);
+        getCommand("servershop").setTabCompleter(serverShopCmd);
         getCommand("shophelp").setExecutor((sender, cmd, label, args) -> {
             for (String line : getConfig().getStringList("MESSAGES.HELP")) {
                 sender.sendMessage(ChatColor.translateAlternateColorCodes('&', line));

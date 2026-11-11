@@ -1,65 +1,103 @@
-# Deployment
+# GhanaRealms Store — Cloudflare Deployment (OpenNext)
 
-## Option A: Cloudflare Workers (via OpenNext) - Git-integrated, non-interactive
+This document was rewritten as part of the Cloudflare/OpenNext compatibility
+fix. It describes the setup actually present in this repo now: `wrangler.jsonc`
+and `open-next.config.ts` were both added from scratch (neither existed
+before), and `lib/db.ts` was updated to route through Cloudflare Hyperdrive.
+**None of this has been run/verified in the environment that produced it** —
+no internet access was available to install `wrangler`/`@opennextjs/cloudflare`
+or execute a real build. Verify locally with the steps below before trusting
+a Cloudflare deploy.
 
-See [CLOUDFLARE_FIX.md](./CLOUDFLARE_FIX.md) for the `pg-cloudflare` bundling
-issue that was fixed to make this work, and exactly what was verified.
+## What changed, in one paragraph
 
-1. In the Cloudflare dashboard: Workers & Pages -> Create -> connect this
-   GitHub repo (Git integration, not manual upload - satisfies requirement
-   #10's "suitable for Cloudflare's Git-connected deployment environment").
-2. Build command: `npm run cf:build` (runs `opennextjs-cloudflare build`)
-3. Deploy command: leave Cloudflare's default (it picks up `.open-next/`
-   and `wrangler.jsonc` automatically), or `npm run cf:deploy` if driving
-   it from a CI script instead of Cloudflare's own Git integration.
-4. Set every variable listed in CLOUDFLARE_FIX.md's "Cloudflare environment
-   variables/secrets" section as an **encrypted secret** in the Workers
-   project's Settings -> Variables - not a plain environment variable.
-5. Database: this deployment still needs a real PostgreSQL instance
-   reachable from Cloudflare's network. Options: a VPS-hosted Postgres
-   with a public (firewalled to Cloudflare IPs) endpoint, or a managed
-   Postgres provider. **Cloudflare Hyperdrive** is worth evaluating as a
-   connection-pooling proxy in front of it, though this fix did not
-   require Hyperdrive to work - straight `DATABASE_URL` already succeeded
-   in local Workers-runtime testing (see CLOUDFLARE_FIX.md's verification
-   table).
-6. First deploy: watch Cloudflare's build log for the exact same
-   `pg-cloudflare` error if you see it - if so, confirm `next.config.ts`
-   and `package.json`'s `pg-cloudflare` dependency actually made it into
-   the deployed commit.
+`pg`'s `lib/stream.js` does a runtime `require('pg-cloudflare')`, but that
+package was only ever installed as `pg`'s own *optional* dependency — never a
+direct dependency of this project — so OpenNext's esbuild bundler failed to
+resolve it in a build environment that prunes optional dependencies (this is
+common in CI/hosted build images). The fix: `pg-cloudflare` is now a direct
+dependency (guarantees it's installed), `open-next.config.ts` marks it
+`external` (so esbuild doesn't try to inline it), and the actual database
+connection on Cloudflare now goes through **Hyperdrive** rather than a raw
+`pg` TCP socket — which is Cloudflare's own documented, supported way to run
+`pg` on Workers at all.
 
-## Option B: Traditional VPS (Node.js, not Cloudflare Workers)
+## One-time setup
 
-## Architecture (per the brief's section 36)
+```bash
+# 1. Install dependencies (this will also finish resolving wrangler/
+#    @opennextjs/cloudflare's own dependency trees into package-lock.json —
+#    those two packages were added to package.json here, but this sandbox
+#    had no internet access to run npm install and complete the lockfile)
+npm install
+
+# 2. Create a Hyperdrive config pointing at your real Postgres instance
+npx wrangler hyperdrive create ghanarealms-store-db \
+  --connection-string="postgresql://user:password@your-db-host:5432/ghanarealms_store"
+# This prints an "id" — put it in wrangler.jsonc under hyperdrive[0].id,
+# replacing REPLACE_WITH_REAL_HYPERDRIVE_ID.
+
+# 3. Log in to Cloudflare (one-time, local only — NOT needed for Git-
+#    integration deploys, which authenticate via Cloudflare's own dashboard
+#    connection to your repo, not a local `wrangler login`)
+npx wrangler login
 ```
-Reverse Proxy (nginx/Caddy, terminates TLS)
-     |
-Store Frontend + Backend (this Next.js app, one process)
-     |
-PostgreSQL
+
+## Required Cloudflare secrets (set via dashboard or `wrangler secret put`)
+
+None of these belong in `wrangler.jsonc` (it's typically committed to git).
+Set each with `npx wrangler secret put NAME`, or in the Cloudflare dashboard
+under Workers & Pages → your worker → Settings → Variables and Secrets:
+
+- `DATABASE_URL` — only needed if you ever run outside Hyperdrive (e.g. a
+  migration script); the deployed Worker itself uses the Hyperdrive binding.
+- `PAYSTACK_PUBLIC_KEY`
+- `PAYSTACK_SECRET_KEY` — **server-side only, never in `vars`, never in the
+  frontend**
+- `PAYSTACK_CALLBACK_URL`
+- `PAYSTACK_WEBHOOK_URL`
+- `MINECRAFT_BRIDGE_SECRET`
+- `ADMIN_JWT_SECRET`
+
+`STORE_BASE_URL` is set in `wrangler.jsonc`'s `vars` block (not a secret) —
+update the placeholder to your real domain before deploying.
+
+## Local verification (do this before deploying)
+
+```bash
+npm install
+npm run build                     # plain Next.js build — should still pass as before
+npx opennextjs-cloudflare build   # the step that was previously failing
+npx opennextjs-cloudflare preview # serves the Worker bundle locally via Miniflare
 ```
-The Minecraft server does NOT need to be on the same machine.
 
-## Steps
-1. Provision a VPS (any provider). Install Node.js 20+, PostgreSQL 16+.
-2. Clone this repo, `cd web`, `npm install`, `npm run build`.
-3. Create the database: `createdb ghanarealms_store`, then
-   `psql $DATABASE_URL -f migrations/001_init.sql`.
-4. Copy `.env.example` to `.env` (or set real environment variables),
-   fill in every value - see comments in that file for what each does.
-5. Create your first admin: `node scripts/create-admin.js <username> <password>`
-   (password 12+ characters - there is no default admin, per section 38).
-6. `npm run start` (or run it under systemd/pm2 for persistence).
-7. Point your reverse proxy at the app's port (3000 by default) and
-   terminate TLS there - this app does not implement TLS itself.
-8. Set `STORE_BASE_URL` to your real public URL (used to build Paystack's
-   callback_url server-side).
-9. Configure Paystack's webhook URL - see PAYSTACK_SETUP.md.
-10. If you also want the Minecraft bridge, set `MINECRAFT_BRIDGE_SECRET`
-    here and the matching value in the plugin's config.yml - see
-    MINECRAFT_BRIDGE.md.
+Confirm the second command completes without the
+`ERROR Could not resolve "pg-cloudflare"` message. Then exercise the routes
+listed in TROUBLESHOOTING.md against the local preview.
 
-## What has NOT been verified
-This has only been run in a local sandbox against a local PostgreSQL
-instance - see STATUS.md's NOT TESTED table. Treat first deployment as a
-real test, the same way first server boot was for the Minecraft side.
+## Cloudflare Git-integration deployment (non-interactive)
+
+In the Cloudflare dashboard, when connecting this repo:
+- **Build command:** `npm run build && npx opennextjs-cloudflare build`
+- **Deploy command:** `npx opennextjs-cloudflare deploy`
+- **Build output:** left as the OpenNext default (`.open-next/`)
+
+This does not require an interactive `wrangler login` during the build —
+Cloudflare's Git integration authenticates the deploy itself once the repo is
+connected in the dashboard; only step 2/3 above (Hyperdrive creation, secret
+values) need a human to run once, ahead of time, from a machine with real
+`wrangler` access.
+
+## Known unverified items
+
+- The exact `wrangler`/`@opennextjs/cloudflare` versions in `package.json`
+  (`^4.42.1` / `^1.9.1`) were the latest known-compatible pairing at the time
+  of writing, not confirmed against this specific project — check for newer
+  compatible versions before deploying.
+- `package-lock.json` has `pg-cloudflare` correctly promoted to a direct
+  dependency (using its already-locked, valid entry), but does **not** yet
+  contain full dependency-tree entries for `wrangler`/`@opennextjs/cloudflare`
+  themselves — `npm install` needs to run once, with real internet access, to
+  complete the lockfile. Fabricating those entries here would have meant
+  guessing integrity hashes, which is worse than leaving them for a real
+  install to fill in.

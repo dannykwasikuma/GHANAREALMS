@@ -1,0 +1,8 @@
+BRIDGE:
+  ENABLED: true
+  STORE-BASE-URL: "https://your-store.example.com"
+  BRIDGE-SECRET: "change-me"      # must equal MINECRAFT_BRIDGE_SECRET on the store
+  SYNC-INTERVAL-SECONDS: 300       # how often the shop re-reads the catalogue (admin edits sync this way)
+SHOP:
+  CURRENCY-NAME: "coins"           # shown in the GUI; the actual money is your Vault economy
+  CONFIRM-SECONDS: 6               # click an item twice within this window to buy

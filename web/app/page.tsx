@@ -12,8 +12,25 @@ async function getFeaturedProducts() {
   }
 }
 
+async function getRecentPurchases() {
+  try {
+    // Player names are masked (first 3 chars + ***) - social proof without exposing full names.
+    return await query<{ name: string; product: string }>(
+      `SELECT mp.username AS name, p.name AS product
+       FROM orders o
+       JOIN minecraft_players mp ON mp.id = o.minecraft_player_id
+       JOIN order_items oi ON oi.order_id = o.id
+       JOIN products p ON p.id = oi.product_id
+       WHERE o.status = 'PAID' ORDER BY o.created_at DESC LIMIT 5`
+    );
+  } catch {
+    return [];
+  }
+}
+
 export default async function Home() {
   const featured = await getFeaturedProducts();
+  const recent = await getRecentPurchases();
 
   return (
     <div>
@@ -22,7 +39,7 @@ export default async function Home() {
           <span className="text-gr-red">Ghana</span>
           <span className="text-gr-gold">Realms</span>
         </h1>
-        <p className="mt-4 text-lg text-foreground/80">A Ghanaian Minecraft Experience.</p>
+        <p className="mt-4 text-lg text-foreground/80">Akwaaba! A Ghanaian Minecraft Experience.</p>
 
         <div className="mt-8 card inline-block px-6 py-4 text-left">
           <p className="text-sm text-foreground/60">Server IP (Java Edition)</p>
@@ -64,6 +81,17 @@ export default async function Home() {
           </div>
         )}
       </section>
+
+      {recent.length > 0 && (
+        <section className="max-w-6xl mx-auto px-4 pb-12">
+          <h2 className="text-lg font-semibold mb-3">Recently supported the realm</h2>
+          <div className="flex flex-wrap gap-2 text-sm">
+            {recent.map((r, i) => (
+              <span key={i} className="pill">{r.name.slice(0, 3)}*** got {r.product}</span>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="max-w-6xl mx-auto px-4 pb-20">
         <h2 className="text-2xl font-bold mb-6">Server benefits</h2>
