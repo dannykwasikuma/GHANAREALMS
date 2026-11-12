@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getAdminSession } from "@/lib/admin-session";
 import { query } from "@/lib/db";
 
@@ -29,6 +30,13 @@ export default async function AdminDashboard() {
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
         <p className="text-sm text-foreground/60">Signed in as {session.username} ({session.role})</p>
       </div>
+
+      <Link href="/admin/products" className="inline-block mb-8 mr-6 text-sm font-semibold text-gr-gold hover:underline">
+        Products & Stock →
+      </Link>
+      <Link href="/admin/clans" className="inline-block mb-8 text-sm font-semibold text-gr-gold hover:underline">
+        Clan Voting →
+      </Link>
 
       <div className="grid md:grid-cols-3 gap-6 mb-10">
         <Card title="Total Paid (all time)" value={`GH₵${(Number(paidTotal) / 100).toFixed(2)}`} />

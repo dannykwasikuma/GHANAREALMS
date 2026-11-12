@@ -1,0 +1,13 @@
+name: GhanaRealmsLinkPlugin
+version: 0.1.0
+main: com.ghanarealms.link.GhanaRealmsLinkPlugin
+api-version: "1.21"
+author: GhanaRealms
+description: Closes the account-linking loop - lets a player redeem a website-issued link code in-game, via /link <CODE>.
+commands:
+  link:
+    description: Link your GhanaRealms website account to this Minecraft account.
+    usage: /link <CODE>
+  myaccount:
+    description: Get a one-time link to create or open your GhanaRealms store account.
+    usage: /myaccount

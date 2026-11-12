@@ -1,0 +1,17 @@
+name: GhanaRealmsRaids
+version: '${project.version}'
+main: com.ghanarealms.raids.GhanaRealmsRaids
+api-version: '1.21'
+author: GhanaRealms
+description: Random mob raids on players and server-wide mob apocalypses with rewards
+commands:
+  raid:
+    description: Start/stop a raid
+    usage: /raid <start [player]|stop|status>
+    permission: ghanarealmsraids.admin
+  apocalypse:
+    description: Start/stop a mob apocalypse
+    usage: /apocalypse <start|stop|status>
+    permission: ghanarealmsraids.admin
+permissions:
+  ghanarealmsraids.admin: {description: Manage events, default: op}

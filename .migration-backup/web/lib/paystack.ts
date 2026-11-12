@@ -43,6 +43,11 @@ export async function initializeTransaction(params: {
         currency: params.currency,
         reference: params.reference,
         callback_url: params.callbackUrl,
+        // Optional: PAYSTACK_CHANNELS=mobile_money,card limits/orders the checkout
+        // channels. Unset = Paystack default (MoMo + card already show for GHS).
+        ...(process.env.PAYSTACK_CHANNELS
+          ? { channels: process.env.PAYSTACK_CHANNELS.split(',').map((c) => c.trim()).filter(Boolean) }
+          : {}),
       }),
     });
   } catch (err) {

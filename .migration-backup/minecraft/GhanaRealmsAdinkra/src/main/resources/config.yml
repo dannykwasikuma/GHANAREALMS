@@ -1,0 +1,23 @@
+CHAT-TITLES: true        # set false if another chat plugin formats chat
+JOIN-MESSAGES: true
+JOIN-LINES:              # {player} placeholder; one is picked at random
+  - "&6Akwaaba, &e{player}&6! Chale, you don don come!"
+  - "&6Ei! &e{player} &6don land. Wo ho te sen?"
+  - "&6Welcome back, &e{player}&6 - Ghana Realms dey wait for you!"
+FIRST-JOIN-LINE: "&a&lAkwaaba &e{player}&a! Welcome to GhanaRealms - type /adinkra to see titles."
+# Twi / local aliases: typed command -> real command. Edit the targets to match your plugins.
+ALIASES:
+  sika: "balance"      # money
+  fie: "home"
+  akwaaba: "spawn"
+SYMBOLS:
+  gye_nyame:     {title: "&6[Gye Nyame]",     effect: ""}
+  sankofa:       {title: "&a[Sankofa]",       effect: ""}
+  dwennimmen:    {title: "&c[Dwennimmen]",    effect: ""}
+  funtunfunefu:  {title: "&e[Funtunfunefu]",  effect: ""}
+  nkyinkyim:     {title: "&5[Nkyinkyim]",     effect: ""}
+  kente:         {title: "&6[&aKente&6]",      effect: ""}
+  black_star:    {title: "&0[&e★ Black Star&0]", effect: ""}
+  akwaaba:       {title: "&a[Akwaaba]",        effect: ""}
+  independence:  {title: "&c[&e6th March&a]",   effect: ""}
+# Optional passive perk per symbol, e.g. effect: "SPEED" or "NIGHT_VISION" (applied on join, no particles).

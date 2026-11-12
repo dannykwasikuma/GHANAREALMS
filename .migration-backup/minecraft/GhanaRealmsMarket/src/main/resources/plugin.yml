@@ -1,0 +1,17 @@
+name: GhanaRealmsMarket
+version: '${project.version}'
+main: com.ghanarealms.market.GhanaRealmsMarket
+api-version: '1.21'
+author: GhanaRealms
+description: Builds the Ghanaian marketplace districts procedurally and makes the shop signs clickable
+depend: [GhanaRealmsItems]
+softdepend: [GhanaRealmsShops]
+commands:
+  gmarket:
+    description: Build the GhanaRealms marketplace at your location
+    usage: /gmarket <plan|build confirm|plot <assign n player|release n|list>|removenpcs>
+    permission: ghanarealmsmarket.admin
+permissions:
+  ghanarealmsmarket.admin: {description: Build the marketplace, default: op}
+  ghanarealmsmarket.bypass: {description: Build inside the protected marketplace, default: op}
+  ghanarealmsmarket.use: {description: Use [GShop] signs, default: true}
