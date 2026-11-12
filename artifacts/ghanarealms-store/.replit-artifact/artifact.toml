@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "GhanaRealms Store"
+description = "The official GhanaRealms storefront and player catalogue for a Ghanaian Minecraft experience, with clans, product browsing, secure Paystack checkout, and server delivery flows."
+version = "1.0.0"
+id = "artifacts/ghanarealms-store"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25605
+
+[services.development]
+run = "pnpm --filter @workspace/ghanarealms-store run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ghanarealms-store", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/ghanarealms-store/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25605"
+BASE_PATH = "/"

@@ -1,0 +1,1 @@
+- [Player history](player-history.md) — the user said no players have played yet as of November 12, 2026.

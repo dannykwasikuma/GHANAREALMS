@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #10130f;
+  --foreground: #f3eedf;
+
+  /* Ghana flag palette, used as the actual design language throughout,
+     not just decoration - section 1's "not merely decorative" */
+  --gr-red: #ce1126;
+  --gr-gold: #fcd116;
+  --gr-green: #006b3f;
+  --gr-black: #0c0f0b;
+  --gr-ivory: #f5f1e8;
+
+  --card-bg: #181d16;
+  --card-border: #30382b;
+  --muted: #a8ad9e;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-gr-red: var(--gr-red);
+  --color-gr-gold: var(--gr-gold);
+  --color-gr-green: var(--gr-green);
+  --color-gr-black: var(--gr-black);
+  --color-gr-ivory: var(--gr-ivory);
+  --color-card-bg: var(--card-bg);
+  --color-card-border: var(--card-border);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Manrope', sans-serif;
+  min-height: 100dvh;
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(252, 209, 22, 0.055), transparent 34%),
+    radial-gradient(circle at 86% 88%, rgba(0, 107, 63, 0.09), transparent 38%);
+}
+
+.kente-stripe {
+  height: 6px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--gr-red) 0 24px,
+    var(--gr-gold) 24px 48px,
+    var(--gr-green) 48px 72px,
+    var(--gr-black) 72px 96px
+  );
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.35rem;
+}
+
+.font-display { font-family: 'Playfair Display', serif; }
+.font-mono { font-family: 'DM Mono', monospace; }
+.page-shell { width: min(1120px, calc(100% - 40px)); margin-inline: auto; }
+.eyebrow { color: var(--gr-gold); font: 500 11px 'DM Mono', monospace; letter-spacing: .16em; text-transform: uppercase; }
+.pill { display: inline-flex; align-items: center; border: 1px solid var(--card-border); padding: 5px 10px; font: 11px 'DM Mono', monospace; color: #c4c8b8; }
+.pill-paid { color: var(--gr-gold); border-color: rgba(252,209,22,.4); background: rgba(252,209,22,.07); }
+.action { display: inline-flex; align-items: center; justify-content: center; padding: 12px 18px; background: var(--gr-gold); color: #171811; font-weight: 800; transition: transform .18s ease, opacity .18s ease; }
+.action:hover { transform: translateY(-2px); }
+.action:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.field { width: 100%; background: #11150f; border: 1px solid var(--card-border); padding: 11px 12px; color: var(--foreground); outline: none; }
+.field:focus { border-color: var(--gr-gold); }
+.subtle { color: var(--muted); }
+.rule { border-color: var(--card-border); }
+::selection { color: #171811; background: var(--gr-gold); }
+@media (max-width: 640px) {
+  .page-shell { width: min(100% - 28px, 1120px); }
+}

@@ -3,13 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: GhanaRealms storefront, player catalogue, and admin API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: store
+    description: Public storefront data
+  - name: orders
+    description: Checkout and order status
+  - name: admin
+    description: Admin tools
+  - name: bridge
+    description: Authenticated Minecraft server integration
+  - name: payments
+    description: Payment provider callbacks
 paths:
   /healthz:
     get:
@@ -24,7 +34,557 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /home:
+    get:
+      operationId: getStoreHome
+      tags: [store]
+      summary: Get storefront homepage data
+      responses:
+        "200":
+          description: Featured products and recent purchases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeData"
+  /products:
+    get:
+      operationId: listStoreProducts
+      tags: [store]
+      summary: List products available in the web store
+      responses:
+        "200":
+          description: Products available for real-money purchase
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+  /products/{slug}:
+    get:
+      operationId: getStoreProduct
+      tags: [store]
+      summary: Get a product by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductDetail"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /catalogue:
+    get:
+      operationId: getStoreCatalogue
+      tags: [store]
+      summary: Get in-game and web catalogue data
+      parameters:
+        - name: c
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Catalogue categories and selected category items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueData"
+  /clans:
+    get:
+      operationId: getClanLeaderboard
+      tags: [store]
+      summary: Get current clan standings and recent winners
+      responses:
+        "200":
+          description: Weekly and monthly clan voting data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClanLeaderboardData"
+  /lookup:
+    get:
+      operationId: lookupOrder
+      tags: [orders]
+      summary: Look up an order by its public order number
+      parameters:
+        - name: order
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order and delivery status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderLookup"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /checkout/init:
+    post:
+      operationId: startCheckout
+      tags: [orders]
+      summary: Start a secure Paystack checkout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutInput"
+      responses:
+        "200":
+          description: Paystack authorization details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "401":
+          description: Player sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: A linked Minecraft account is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /payments/verify:
+    get:
+      operationId: verifyPayment
+      tags: [orders]
+      summary: Read the verified state of a payment
+      parameters:
+        - name: reference
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payment status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentVerification"
+  /admin/login:
+    post:
+      operationId: adminLogin
+      tags: [admin]
+      summary: Sign in to the admin area
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginInput"
+      responses:
+        "200":
+          description: Admin sign-in result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLoginResult"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /admin/overview:
+    get:
+      operationId: getAdminOverview
+      tags: [admin]
+      summary: Get admin order and payment overview
+      responses:
+        "200":
+          description: Admin dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+        "401":
+          description: Admin sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /admin/products:
+    get:
+      operationId: getAdminProducts
+      tags: [admin]
+      summary: Search and filter products for admin
+      parameters:
+        - name: c
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Admin product list and categories
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProductsData"
+        "401":
+          description: Admin sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createAdminProduct
+      tags: [admin]
+      summary: Create a catalogue product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminProductInput"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProductCreated"
+        "400":
+          description: Invalid product data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /admin/products/{id}:
+    patch:
+      operationId: updateAdminProduct
+      tags: [admin]
+      summary: Update an existing catalogue product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminProductUpdate"
+      responses:
+        "200":
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProductUpdated"
+        "401":
+          description: Admin sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /admin/clans:
+    get:
+      operationId: getAdminClans
+      tags: [admin]
+      summary: Get clan voting periods for admin
+      responses:
+        "200":
+          description: Voting periods and configured reward tiers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminClansData"
+        "401":
+          description: Admin sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /admin/clans/periods/{id}/settle:
+    post:
+      operationId: settleClanPeriod
+      tags: [admin]
+      summary: Settle a closed clan voting period
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Period settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClanSettlement"
+        "401":
+          description: Admin sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bridge/pending-deliveries:
+    get:
+      operationId: getPendingDeliveries
+      tags: [bridge]
+      summary: Poll queued purchases and clan rewards
+      security:
+        - BridgeSecret: []
+      responses:
+        "200":
+          description: Deliveries waiting for the Minecraft server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgePendingDeliveries"
+        "401":
+          description: Invalid bridge secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bridge/ack-delivery:
+    post:
+      operationId: acknowledgeDelivery
+      tags: [bridge]
+      summary: Acknowledge a Minecraft delivery attempt
+      security:
+        - BridgeSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BridgeDeliveryAcknowledgement"
+      responses:
+        "200":
+          description: Delivery acknowledgement recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgeAcknowledgementResult"
+        "401":
+          description: Invalid bridge secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bridge/catalogue:
+    get:
+      operationId: getBridgeCatalogue
+      tags: [bridge]
+      summary: Get products that can be purchased in-game
+      security:
+        - BridgeSecret: []
+      responses:
+        "200":
+          description: Active in-game catalogue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgeCatalogue"
+        "401":
+          description: Invalid bridge secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bridge/catalogue/purchase:
+    post:
+      operationId: reserveInGamePurchase
+      tags: [bridge]
+      summary: Reserve stock and record an in-game purchase
+      security:
+        - BridgeSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BridgePurchaseInput"
+      responses:
+        "200":
+          description: Purchase reserved at its authoritative price
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgePurchaseResult"
+        "401":
+          description: Invalid bridge secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bridge/catalogue/refund:
+    post:
+      operationId: refundInGamePurchase
+      tags: [bridge]
+      summary: Undo a reserved purchase when delivery fails
+      security:
+        - BridgeSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BridgeRefundInput"
+      responses:
+        "200":
+          description: Purchase reservation removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgeRefundResult"
+        "401":
+          description: Invalid bridge secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bridge/clans/current-period:
+    get:
+      operationId: getCurrentClanPeriod
+      tags: [bridge]
+      summary: Get or create the open clan voting period
+      security:
+        - BridgeSecret: []
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [WEEKLY, MONTHLY]
+      responses:
+        "200":
+          description: Open voting period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgeCurrentPeriod"
+        "401":
+          description: Invalid bridge secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bridge/clans/sync:
+    post:
+      operationId: syncClans
+      tags: [bridge]
+      summary: Sync the authoritative active clan roster
+      security:
+        - BridgeSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BridgeClanSyncInput"
+      responses:
+        "200":
+          description: Clan roster synchronized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgeClanSyncResult"
+        "401":
+          description: Invalid bridge secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bridge/clans/vote:
+    post:
+      operationId: castClanVote
+      tags: [bridge]
+      summary: Cast one authenticated in-game clan vote
+      security:
+        - BridgeSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BridgeClanVoteInput"
+      responses:
+        "200":
+          description: Vote cast or already recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgeClanVoteResult"
+        "401":
+          description: Invalid bridge secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /payments/paystack/webhook:
+    post:
+      operationId: receivePaystackWebhook
+      tags: [payments]
+      summary: Verify and process a Paystack payment event
+      security:
+        - PaystackSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaystackWebhookPayload"
+      responses:
+        "200":
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgeWebhookResult"
+        "401":
+          description: Invalid webhook signature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
+  securitySchemes:
+    BridgeSecret:
+      type: apiKey
+      in: header
+      name: X-Bridge-Secret
+    PaystackSignature:
+      type: apiKey
+      in: header
+      name: x-paystack-signature
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +593,401 @@ components:
           type: string
       required:
         - status
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+      required: [error]
+    Product:
+      type: object
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        description: { type: string }
+        price_pesewas: { type: ["integer", "null"] }
+        currency: { type: string }
+        category: { type: string }
+        rarity: { type: ["string", "null"] }
+        featured: { type: boolean }
+        stock: { type: ["integer", "null"] }
+        discount_percent: { type: integer }
+        discount_ends_at: { type: ["string", "null"], format: date-time }
+        season: { type: ["string", "null"] }
+        purchase_limit_per_player: { type: ["integer", "null"] }
+      required: [slug, name, description, price_pesewas, currency, category, rarity, featured, stock, discount_percent, discount_ends_at, season, purchase_limit_per_player]
+    ProductDetail:
+      allOf:
+        - $ref: "#/components/schemas/Product"
+        - type: object
+          properties:
+            ingame_price_minor: { type: ["integer", "null"] }
+            duration_days: { type: ["integer", "null"] }
+            limit_window_days: { type: ["integer", "null"] }
+            gameplay_only: { type: boolean }
+            available_from: { type: ["string", "null"], format: date-time }
+            available_until: { type: ["string", "null"], format: date-time }
+            item_specs:
+              type: array
+              items: { type: string }
+          required: [ingame_price_minor, duration_days, limit_window_days, gameplay_only, available_from, available_until, item_specs]
+    HomePurchase:
+      type: object
+      properties:
+        name: { type: string }
+        product: { type: string }
+      required: [name, product]
+    HomeData:
+      type: object
+      properties:
+        featured:
+          type: array
+          items: { $ref: "#/components/schemas/Product" }
+        recent:
+          type: array
+          items: { $ref: "#/components/schemas/HomePurchase" }
+      required: [featured, recent]
+    CatalogueCategory:
+      type: object
+      properties:
+        category: { type: string }
+        count: { type: integer }
+      required: [category, count]
+    CatalogueItem:
+      allOf:
+        - $ref: "#/components/schemas/ProductDetail"
+    CatalogueData:
+      type: object
+      properties:
+        categories:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogueCategory" }
+        selectedCategory: { type: ["string", "null"] }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogueItem" }
+      required: [categories, selectedCategory, items]
+    ClanStanding:
+      type: object
+      properties:
+        clan_id: { type: string }
+        tag: { type: string }
+        name: { type: string }
+        votes: { type: integer }
+      required: [clan_id, tag, name, votes]
+    ClanWinner:
+      type: object
+      properties:
+        rank: { type: integer }
+        tag: { type: string }
+        name: { type: string }
+        vote_count: { type: integer }
+        label: { type: ["string", "null"] }
+      required: [rank, tag, name, vote_count, label]
+    ClanPeriod:
+      type: object
+      properties:
+        periodEnd: { type: ["string", "null"], format: date-time }
+        standings:
+          type: array
+          items: { $ref: "#/components/schemas/ClanStanding" }
+        winners:
+          type: array
+          items: { $ref: "#/components/schemas/ClanWinner" }
+      required: [periodEnd, standings, winners]
+    ClanLeaderboardData:
+      type: object
+      properties:
+        weekly: { $ref: "#/components/schemas/ClanPeriod" }
+        monthly: { $ref: "#/components/schemas/ClanPeriod" }
+      required: [weekly, monthly]
+    OrderLookup:
+      type: object
+      properties:
+        orderNumber: { type: string }
+        product: { type: string }
+        minecraftUsername: { type: string }
+        paymentStatus: { type: string }
+        deliveryStatus: { type: string }
+        purchaseDate: { type: string, format: date-time }
+      required: [orderNumber, product, minecraftUsername, paymentStatus, deliveryStatus, purchaseDate]
+    CheckoutInput:
+      type: object
+      properties:
+        productSlug: { type: string, minLength: 1 }
+        agreedToTerms: { type: boolean, const: true }
+      required: [productSlug, agreedToTerms]
+    CheckoutResponse:
+      type: object
+      properties:
+        orderNumber: { type: string }
+        authorizationUrl: { type: string, format: uri }
+        reference: { type: string }
+      required: [orderNumber, authorizationUrl, reference]
+    PaymentVerification:
+      type: object
+      properties:
+        state: { type: string, enum: [PAID, PENDING, FAILED, CANCELLED, UNKNOWN] }
+        orderNumber: { type: ["string", "null"] }
+      required: [state, orderNumber]
+    AdminLoginInput:
+      type: object
+      properties:
+        username: { type: string, minLength: 1 }
+        password: { type: string, minLength: 1 }
+      required: [username, password]
+    AdminLoginResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+      required: [ok]
+    AdminOverview:
+      type: object
+      properties:
+        paidTotalPesewas: { type: integer }
+        orders:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: string }
+              count: { type: integer }
+            required: [status, count]
+        deliveries:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: string }
+              count: { type: integer }
+            required: [status, count]
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              paystack_reference: { type: string }
+              event_type: { type: string }
+              processed: { type: boolean }
+              received_at: { type: string, format: date-time }
+            required: [id, paystack_reference, event_type, processed, received_at]
+      required: [paidTotalPesewas, orders, deliveries, events]
+    AdminProduct:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        category: { type: string }
+        price_pesewas: { type: ["integer", "null"] }
+        ingame_price_minor: { type: ["integer", "null"] }
+        stock: { type: ["integer", "null"] }
+        purchase_limit_per_player: { type: ["integer", "null"] }
+        discount_percent: { type: integer }
+        active: { type: boolean }
+        gameplay_only: { type: boolean }
+      required: [id, name, slug, category, price_pesewas, ingame_price_minor, stock, purchase_limit_per_player, discount_percent, active, gameplay_only]
+    AdminProductsData:
+      type: object
+      properties:
+        categories:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogueCategory" }
+        selectedCategory: { type: ["string", "null"] }
+        products:
+          type: array
+          items: { $ref: "#/components/schemas/AdminProduct" }
+      required: [categories, selectedCategory, products]
+    AdminProductInput:
+      type: object
+      properties:
+        name: { type: string }
+        slug: { type: string }
+        category: { type: string }
+        description: { type: string }
+        price_pesewas: { type: ["integer", "null"] }
+        ingame_price_minor: { type: ["integer", "null"] }
+        item_specs:
+          type: array
+          items: { type: string }
+      required: [name, slug, category]
+    AdminProductUpdate:
+      type: object
+      properties:
+        price_pesewas: { type: ["integer", "null"] }
+        ingame_price_minor: { type: ["integer", "null"] }
+        stock: { type: ["integer", "null"] }
+        purchase_limit_per_player: { type: ["integer", "null"] }
+        discount_percent: { type: integer }
+        active: { type: boolean }
+      additionalProperties: true
+    AdminProductCreated:
+      type: object
+      properties:
+        ok: { type: boolean }
+        id: { type: string }
+      required: [ok, id]
+    AdminProductUpdated:
+      type: object
+      properties:
+        ok: { type: boolean }
+        product: { $ref: "#/components/schemas/AdminProduct" }
+      required: [ok, product]
+    AdminClanPeriod:
+      type: object
+      properties:
+        id: { type: string }
+        period_type: { type: string }
+        period_start: { type: string, format: date-time }
+        period_end: { type: string, format: date-time }
+        status: { type: string }
+        reward_tier_count: { type: integer }
+        vote_count: { type: integer }
+      required: [id, period_type, period_start, period_end, status, reward_tier_count, vote_count]
+    AdminClansData:
+      type: object
+      properties:
+        periods:
+          type: array
+          items: { $ref: "#/components/schemas/AdminClanPeriod" }
+        weeklyTierCount: { type: integer }
+        monthlyTierCount: { type: integer }
+      required: [periods, weeklyTierCount, monthlyTierCount]
+    ClanSettlement:
+      type: object
+      properties:
+        ok: { type: boolean }
+        rewardsCreated:
+          type: array
+          items:
+            type: object
+            properties:
+              clanId: { type: string }
+              rank: { type: integer }
+              votes: { type: integer }
+              tierId: { type: ["string", "null"] }
+            required: [clanId, rank, votes, tierId]
+      required: [ok, rewardsCreated]
+    BridgePendingDeliveries:
+      type: object
+      properties:
+        deliveries:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required: [deliveries]
+    BridgeDeliveryAcknowledgement:
+      type: object
+      properties:
+        deliveryId: { type: string, format: uuid }
+        success: { type: boolean }
+        error: { type: string }
+      required: [deliveryId, success]
+    BridgeAcknowledgementResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        alreadyDelivered: { type: boolean }
+      required: [ok]
+    BridgeCatalogue:
+      type: object
+      properties:
+        products:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required: [products]
+    BridgePurchaseInput:
+      type: object
+      properties:
+        minecraftUuid: { type: string, format: uuid }
+        minecraftUsername: { type: string, minLength: 3, maxLength: 16 }
+        slug: { type: string, minLength: 1 }
+        quantity: { type: integer, minimum: 1, maximum: 64, default: 1 }
+        expectedUnitPrice: { type: integer, minimum: 1 }
+      required: [minecraftUuid, minecraftUsername, slug, expectedUnitPrice]
+    BridgePurchaseResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        purchaseId: { type: string, format: uuid }
+        unitPrice: { type: integer }
+        itemSpecs:
+          type: array
+          items: { type: string }
+      required: [ok, purchaseId, unitPrice, itemSpecs]
+    BridgeRefundInput:
+      type: object
+      properties:
+        purchaseId: { type: string, format: uuid }
+      required: [purchaseId]
+    BridgeRefundResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        refunded: { type: boolean }
+      required: [ok, refunded]
+    BridgeCurrentPeriod:
+      type: object
+      properties:
+        period:
+          type: object
+          additionalProperties: true
+      required: [period]
+    BridgeClanSyncInput:
+      type: object
+      properties:
+        clans:
+          type: array
+          items:
+            type: object
+            properties:
+              tag: { type: string, minLength: 1, maxLength: 16 }
+              name: { type: string, minLength: 1, maxLength: 64 }
+              leaderMinecraftUuid: { type: string, format: uuid }
+              leaderMinecraftUsername: { type: string, minLength: 3, maxLength: 16 }
+              members:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    minecraftUuid: { type: string, format: uuid }
+                    minecraftUsername: { type: string, minLength: 3, maxLength: 16 }
+                  required: [minecraftUuid, minecraftUsername]
+            required: [tag, name, leaderMinecraftUuid, leaderMinecraftUsername, members]
+      required: [clans]
+    BridgeClanSyncResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        clansSynced: { type: integer }
+      required: [ok, clansSynced]
+    BridgeClanVoteInput:
+      type: object
+      properties:
+        voterMinecraftUuid: { type: string, format: uuid }
+        voterMinecraftUsername: { type: string, minLength: 3, maxLength: 16 }
+        clanTag: { type: string, minLength: 1, maxLength: 16 }
+        periodType: { type: string, enum: [WEEKLY, MONTHLY] }
+      required: [voterMinecraftUuid, voterMinecraftUsername, clanTag, periodType]
+    BridgeClanVoteResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        alreadyVoted: { type: boolean }
+        message: { type: string }
+      required: [ok, alreadyVoted]
+    BridgeWebhookResult:
+      type: object
+      properties:
+        received: { type: boolean }
+      required: [received]
+    PaystackWebhookPayload:
+      type: object
+      additionalProperties: true
 
