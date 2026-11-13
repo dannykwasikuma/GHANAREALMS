@@ -1,0 +1,508 @@
+package com.bx.ultimateDonutSmp.managers;
+
+import com.bx.ultimateDonutSmp.UltimateDonutSmp;
+import com.bx.ultimateDonutSmp.models.WorthResult;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class WorthManagerTest {
+
+    @Test
+    void displaysSingleItemTotalWorth() {
+        WorthResult result = directWorth(100.0, 100.0);
+
+        assertEquals(100.0, WorthManager.getDisplayWorth(result));
+    }
+
+    @Test
+    void displaysStackTotalWorthInsteadOfUnitWorth() {
+        WorthResult result = directWorth(100.0, 500.0);
+
+        assertEquals(500.0, WorthManager.getDisplayWorth(result));
+    }
+
+    @Test
+    void displaysContainerStackTotalWorth() {
+        WorthResult result = new WorthResult(
+                true,
+                true,
+                250.0,
+                500.0,
+                50.0,
+                200.0,
+                "CONTAINER",
+                "SHULKER_BOX",
+                "BLOCKS"
+        );
+
+        assertEquals(500.0, WorthManager.getDisplayWorth(result));
+    }
+
+    @Test
+    void enchantedItemAddsEnchantmentValueToTotalWorth() throws Exception {
+        setupMockServer();
+
+        org.bukkit.configuration.file.YamlConfiguration worthConfig = new org.bukkit.configuration.file.YamlConfiguration();
+        worthConfig.set("TYPE.ARMOR_AND_TOOLS.DIAMOND_SWORD", 50.0);
+        worthConfig.set("TYPE.BOOK.ENCHANTED_BOOK:SHARPNESS:5", 1500.0);
+
+        UltimateDonutSmp plugin = createMockPlugin(worthConfig);
+        WorthManager worthManager = new WorthManager(plugin);
+
+        org.bukkit.inventory.ItemStack sword = new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND_SWORD);
+        org.bukkit.enchantments.Enchantment sharpness = new TestEnchantment(org.bukkit.NamespacedKey.minecraft("sharpness"));
+        sword.addUnsafeEnchantment(sharpness, 5);
+
+
+
+        WorthResult result = worthManager.resolveWorth(sword);
+        assertEquals(1550.0, result.totalWorth());
+    }
+
+    @Test
+    void findMaterialResolvesSnakeCaseAndPrettifiedNames() throws Exception {
+        org.bukkit.configuration.file.YamlConfiguration worthConfig = new org.bukkit.configuration.file.YamlConfiguration();
+        worthConfig.set("TYPE.BLOCKS.ACACIA_PRESSURE_PLATE", 25.0);
+        worthConfig.set("TYPE.MISC.DRAGON_EGG", 6400000000.0);
+
+        UltimateDonutSmp plugin = createMockPlugin(worthConfig);
+        WorthManager worthManager = new WorthManager(plugin);
+
+        assertEquals(org.bukkit.Material.ACACIA_PRESSURE_PLATE, worthManager.findMaterial("acacia_pressure_plate"));
+        assertEquals(org.bukkit.Material.ACACIA_PRESSURE_PLATE, worthManager.findMaterial("Acacia Pressure Plate"));
+        assertEquals(org.bukkit.Material.DRAGON_EGG, worthManager.findMaterial("dragon_egg"));
+        assertEquals(org.bukkit.Material.DRAGON_EGG, worthManager.findMaterial("Dragon Egg"));
+    }
+
+    @Test
+    void isSimilarIgnoringWorthComparesMaterialsAndIgnoresWorthLore() throws Exception {
+        setupMockServer();
+
+        org.bukkit.configuration.file.YamlConfiguration worthConfig = new org.bukkit.configuration.file.YamlConfiguration();
+        worthConfig.set("TYPE.MINERALS.DIAMOND", 10.0);
+
+        UltimateDonutSmp plugin = createMockPlugin(worthConfig);
+        WorthManager worthManager = new WorthManager(plugin);
+
+        org.bukkit.inventory.ItemStack item1 = new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND, 5);
+        org.bukkit.inventory.ItemStack item2 = new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND, 36);
+
+        assertTrue(worthManager.isSimilarIgnoringWorth(item1, item2));
+
+        org.bukkit.inventory.ItemStack gold = new org.bukkit.inventory.ItemStack(org.bukkit.Material.GOLD_INGOT, 5);
+        assertFalse(worthManager.isSimilarIgnoringWorth(item1, gold));
+    }
+
+    @Test
+    void packetDisplayModeLeavesRealItemsUntouchedSoTheyStillStack() throws Exception {
+        setupMockServer();
+
+        org.bukkit.configuration.file.YamlConfiguration worthConfig = new org.bukkit.configuration.file.YamlConfiguration();
+        worthConfig.set("TYPE.MINERALS.DIAMOND", 10.0);
+
+        UltimateDonutSmp plugin = createMockPlugin(worthConfig);
+        WorthManager worthManager = new WorthManager(plugin);
+        worthManager.setPacketDisplayActive(true);
+
+        java.lang.reflect.Method updateWorthDisplay = WorthManager.class.getDeclaredMethod(
+                "updateWorthDisplay", org.bukkit.inventory.ItemStack.class, boolean.class);
+        updateWorthDisplay.setAccessible(true);
+
+        org.bukkit.inventory.ItemStack partialStack = new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND, 5);
+        org.bukkit.inventory.ItemStack fullStack = new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND, 36);
+
+        assertSame(partialStack, updateWorthDisplay.invoke(worthManager, partialStack, true));
+        assertSame(fullStack, updateWorthDisplay.invoke(worthManager, fullStack, true));
+        assertTrue(partialStack.isSimilar(fullStack));
+    }
+
+    @Test
+    void anOrdinaryItemStillSellsWhileContainerPricingIsOff() throws Exception {
+        setupMockServer();
+
+        org.bukkit.configuration.file.YamlConfiguration worthConfig = new org.bukkit.configuration.file.YamlConfiguration();
+        worthConfig.set("CONTAINER.ENABLED", false);
+        worthConfig.set("TYPE.ORES.DIAMOND", 100.0);
+
+        WorthManager worthManager = new WorthManager(createMockPlugin(worthConfig));
+        WorthResult result = worthManager.resolveWorth(
+                new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND)
+        );
+
+        assertTrue(result.sellable(), "refusing unpriced containers must not stop ordinary items selling");
+        assertEquals(100.0, result.totalWorth());
+    }
+
+    @Test
+    void containerContentsArePricedWhileTheConfigLetsThemBe() throws Exception {
+        setupMockServer();
+
+        org.bukkit.configuration.file.YamlConfiguration worthConfig = new org.bukkit.configuration.file.YamlConfiguration();
+        worthConfig.set("CONTAINER.ENABLED", true);
+        worthConfig.set("CONTAINER.MAX-CONTAINER-DEPTH", 1);
+
+        WorthManager worthManager = new WorthManager(createMockPlugin(worthConfig));
+
+        assertTrue(worthManager.willPriceContainerContents(0, true));
+    }
+
+    @Test
+    void containerContentsGoUnpricedWheneverTheSaleWouldNotReachThem() throws Exception {
+        setupMockServer();
+
+        org.bukkit.configuration.file.YamlConfiguration off = new org.bukkit.configuration.file.YamlConfiguration();
+        off.set("CONTAINER.ENABLED", false);
+        assertFalse(
+                new WorthManager(createMockPlugin(off)).willPriceContainerContents(0, true),
+                "container pricing switched off"
+        );
+
+        org.bukkit.configuration.file.YamlConfiguration depth = new org.bukkit.configuration.file.YamlConfiguration();
+        depth.set("CONTAINER.ENABLED", true);
+        depth.set("CONTAINER.MAX-CONTAINER-DEPTH", 1);
+        WorthManager depthManager = new WorthManager(createMockPlugin(depth));
+        assertFalse(depthManager.willPriceContainerContents(1, true), "already at the depth limit");
+        assertFalse(depthManager.willPriceContainerContents(0, false), "nesting closed off");
+    }
+
+    @Test
+    void screensThatHoldClientStateAreNotResynced() throws Exception {
+        setupMockServer();
+
+        assertTrue(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.ENCHANTING));
+        assertTrue(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.ANVIL));
+        assertTrue(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.GRINDSTONE));
+        assertTrue(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.SMITHING));
+        assertTrue(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.STONECUTTER));
+        assertTrue(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.LOOM));
+        assertTrue(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.CARTOGRAPHY));
+        assertTrue(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.MERCHANT));
+        assertTrue(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.BEACON));
+        assertTrue(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.WORKBENCH));
+
+        assertFalse(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.CHEST));
+        assertFalse(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.SHULKER_BOX));
+        assertFalse(WorthManager.holdsClientState(org.bukkit.event.inventory.InventoryType.CRAFTING));
+        assertFalse(WorthManager.holdsClientState(null));
+    }
+
+    @Test
+    void forcedRefreshLeavesAnOpenEnchantingTableAlone() throws Exception {
+        setupMockServer();
+        UltimateDonutSmp plugin = createMockPlugin(new org.bukkit.configuration.file.YamlConfiguration());
+        WorthManager worthManager = new WorthManager(plugin);
+
+        assertFalse(worthManager.canResendOpenInventory(
+                playerWithOpenView(org.bukkit.event.inventory.InventoryType.ENCHANTING)));
+        assertFalse(worthManager.canResendOpenInventory(
+                playerWithOpenView(org.bukkit.event.inventory.InventoryType.ANVIL)));
+
+        assertTrue(worthManager.canResendOpenInventory(
+                playerWithOpenView(org.bukkit.event.inventory.InventoryType.CHEST)));
+        assertTrue(worthManager.canResendOpenInventory(
+                playerWithOpenView(org.bukkit.event.inventory.InventoryType.CRAFTING)));
+    }
+
+    @Test
+    void theBundledConfigShipsTheWorthLoreSwitchTurnedOn() throws Exception {
+        org.bukkit.configuration.file.YamlConfiguration config = new org.bukkit.configuration.file.YamlConfiguration();
+        config.load(java.nio.file.Path.of("src/main/resources", "config.yml").toFile());
+
+        assertTrue(config.isConfigurationSection("WORTH-LORE"));
+        assertTrue(config.getBoolean("WORTH-LORE.ENABLED"));
+        assertEquals("&7Worth: &a$%price%", config.getString("WORTH-LORE.FORMAT"));
+    }
+
+    @Test
+    void theWorthLoreSwitchStaysOnWhenAnAdminHasNotTouchedIt() throws Exception {
+        UltimateDonutSmp plugin = createMockPlugin(new org.bukkit.configuration.file.YamlConfiguration(), new org.bukkit.configuration.file.YamlConfiguration());
+
+        assertTrue(new WorthManager(plugin).isWorthLoreEnabled());
+    }
+
+    @Test
+    void turningTheWorthLoreSwitchOffHidesTheLineFromEveryone() throws Exception {
+        org.bukkit.configuration.file.YamlConfiguration mainConfig = new org.bukkit.configuration.file.YamlConfiguration();
+        mainConfig.set("WORTH-LORE.ENABLED", false);
+
+        UltimateDonutSmp plugin = createMockPlugin(new org.bukkit.configuration.file.YamlConfiguration(), mainConfig);
+        WorthManager worthManager = new WorthManager(plugin);
+
+        assertFalse(worthManager.isWorthLoreEnabled());
+        // the switch is read before the player's own preference, so this answers false with no
+        // player data manager behind it at all
+        assertFalse(worthManager.isWorthDisplayEnabledFor(null));
+    }
+
+    private org.bukkit.entity.Player playerWithOpenView(org.bukkit.event.inventory.InventoryType type) {
+        org.bukkit.inventory.Inventory topInventory = (org.bukkit.inventory.Inventory) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.Inventory.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.Inventory.class},
+                (proxy, method, args) -> method.getName().equals("getType") ? type : defaultValue(method));
+
+        org.bukkit.inventory.InventoryView view = (org.bukkit.inventory.InventoryView) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.inventory.InventoryView.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.InventoryView.class},
+                (proxy, method, args) -> method.getName().equals("getTopInventory") ? topInventory : defaultValue(method));
+
+        return (org.bukkit.entity.Player) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.entity.Player.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.entity.Player.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("isOnline")) {
+                        return true;
+                    }
+                    if (method.getName().equals("getOpenInventory")) {
+                        return view;
+                    }
+                    return defaultValue(method);
+                });
+    }
+
+    private static Object defaultValue(java.lang.reflect.Method method) {
+        Class<?> returnType = method.getReturnType();
+        if (returnType == boolean.class) {
+            return false;
+        }
+        if (returnType == int.class) {
+            return 0;
+        }
+        return null;
+    }
+
+    private void setupMockServer() throws Exception {
+        java.lang.reflect.Field serverField = org.bukkit.Bukkit.class.getDeclaredField("server");
+        serverField.setAccessible(true);
+
+        final Object[] registryMockHolder = new Object[1];
+        final Object[] factoryMockHolder = new Object[1];
+
+        org.bukkit.Server mockServer = (org.bukkit.Server) java.lang.reflect.Proxy.newProxyInstance(
+                org.bukkit.Server.class.getClassLoader(),
+                new Class<?>[]{org.bukkit.Server.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("getRegistry")) {
+                        Class<?> registryType = (Class<?>) args[0];
+                        Class<?> registryClass = Class.forName("org.bukkit.Registry");
+                        if (registryType.getName().endsWith("Enchantment")) {
+                            if (registryMockHolder[0] == null) {
+                                registryMockHolder[0] = java.lang.reflect.Proxy.newProxyInstance(
+                                        registryClass.getClassLoader(),
+                                        new Class<?>[]{registryClass},
+                                        (rProxy, rMethod, rArgs) -> {
+                                            if (rMethod.getName().equals("get")) {
+                                                org.bukkit.NamespacedKey key = (org.bukkit.NamespacedKey) rArgs[0];
+                                                return new TestEnchantment(key);
+                                            }
+                                            return null;
+                                        }
+                                );
+                            }
+                            return registryMockHolder[0];
+                        }
+                        return java.lang.reflect.Proxy.newProxyInstance(
+                                registryClass.getClassLoader(),
+                                new Class<?>[]{registryClass},
+                                (rProxy, rMethod, rArgs) -> null
+                        );
+                    }
+                    if (method.getName().equals("getItemFactory")) {
+                        if (factoryMockHolder[0] == null) {
+                            java.util.Map<org.bukkit.enchantments.Enchantment, Integer> enchantsMap = new java.util.HashMap<>();
+                            org.bukkit.inventory.meta.ItemMeta mockMeta = (org.bukkit.inventory.meta.ItemMeta) java.lang.reflect.Proxy.newProxyInstance(
+                                    org.bukkit.inventory.meta.ItemMeta.class.getClassLoader(),
+                                    new Class<?>[]{org.bukkit.inventory.meta.ItemMeta.class, org.bukkit.inventory.meta.Damageable.class},
+                                    (mProxy, mMethod, mArgs) -> {
+                                        if (mMethod.getName().equals("addEnchant") || mMethod.getName().equals("addStoredEnchant")) {
+                                            enchantsMap.put((org.bukkit.enchantments.Enchantment) mArgs[0], (Integer) mArgs[1]);
+                                            return true;
+                                        }
+                                        if (mMethod.getName().equals("getEnchants") || mMethod.getName().equals("getStoredEnchants")) {
+                                            return enchantsMap;
+                                        }
+                                        if (mMethod.getName().equals("hasEnchant") || mMethod.getName().equals("hasStoredEnchant")) {
+                                            return enchantsMap.containsKey(mArgs[0]);
+                                        }
+                                        if (mMethod.getName().equals("clone")) {
+                                            return mProxy;
+                                        }
+                                        if (mMethod.getName().equals("equals")) {
+                                            return mProxy == mArgs[0];
+                                        }
+                                        if (mMethod.getName().equals("hashCode")) {
+                                            return System.identityHashCode(mProxy);
+                                        }
+                                        if (mMethod.getName().equals("getDamage")) {
+                                            return 0;
+                                        }
+                                        if (mMethod.getName().equals("hasDamage")) {
+                                            return false;
+                                        }
+                                        if (mMethod.getReturnType() == boolean.class) {
+                                            return false;
+                                        }
+                                        if (mMethod.getReturnType() == int.class) {
+                                            return 0;
+                                        }
+                                        return null;
+                                    }
+                            );
+                            factoryMockHolder[0] = java.lang.reflect.Proxy.newProxyInstance(
+                                    org.bukkit.inventory.ItemFactory.class.getClassLoader(),
+                                    new Class<?>[]{org.bukkit.inventory.ItemFactory.class},
+                                    (fProxy, fMethod, fArgs) -> {
+                                        if (fMethod.getName().equals("getItemMeta")) {
+                                            return mockMeta;
+                                        }
+                                        if (fMethod.getName().equals("hasItemMeta")) {
+                                            return true;
+                                        }
+                                        if (fMethod.getName().equals("isApplicable")) {
+                                            return true;
+                                        }
+                                        if (fMethod.getName().equals("asMetaFor")) {
+                                            return fArgs[0];
+                                        }
+                                        if (fMethod.getName().equals("equals") && fArgs.length == 2) {
+                                            return java.util.Objects.equals(fArgs[0], fArgs[1]);
+                                        }
+                                        return null;
+                                    }
+                            );
+                        }
+                        return factoryMockHolder[0];
+                    }
+                    return null;
+                }
+        );
+
+        serverField.set(null, mockServer);
+    }
+
+    private UltimateDonutSmp createMockPlugin(
+            org.bukkit.configuration.file.YamlConfiguration worthConfig,
+            org.bukkit.configuration.file.YamlConfiguration mainConfig
+    ) throws Exception {
+        UltimateDonutSmp plugin = createMockPlugin(worthConfig);
+
+        java.lang.reflect.Field configField = ConfigManager.class.getDeclaredField("config");
+        configField.setAccessible(true);
+        configField.set(plugin.getConfigManager(), mainConfig);
+
+        return plugin;
+    }
+
+    private UltimateDonutSmp createMockPlugin(org.bukkit.configuration.file.YamlConfiguration worthConfig) throws Exception {
+        java.lang.reflect.Constructor<Object> objectConstructor = Object.class.getConstructor();
+        sun.reflect.ReflectionFactory reflectionFactory = sun.reflect.ReflectionFactory.getReflectionFactory();
+        java.lang.reflect.Constructor<?> newConstructor = reflectionFactory.newConstructorForSerialization(UltimateDonutSmp.class, objectConstructor);
+        UltimateDonutSmp plugin = (UltimateDonutSmp) newConstructor.newInstance();
+
+        ConfigManager configManager = new ConfigManager(plugin);
+        java.lang.reflect.Field worthField = ConfigManager.class.getDeclaredField("worth");
+        worthField.setAccessible(true);
+        worthField.set(configManager, worthConfig);
+
+        java.lang.reflect.Field cmField = UltimateDonutSmp.class.getDeclaredField("configManager");
+        cmField.setAccessible(true);
+        cmField.set(plugin, configManager);
+
+        java.lang.reflect.Field descField = org.bukkit.plugin.java.JavaPlugin.class.getDeclaredField("description");
+        descField.setAccessible(true);
+        org.bukkit.plugin.PluginDescriptionFile pdf = new org.bukkit.plugin.PluginDescriptionFile("UltimateDonutSmp", "1.0", "com.bx.ultimateDonutSmp.UltimateDonutSmp");
+        descField.set(plugin, pdf);
+
+        return plugin;
+    }
+
+    private WorthResult directWorth(double unitWorth, double totalWorth) {
+        return new WorthResult(
+                true,
+                false,
+                unitWorth,
+                totalWorth,
+                unitWorth,
+                0.0,
+                "DIRECT",
+                "DIAMOND",
+                "ORES"
+        );
+    }
+
+    private static class TestEnchantment extends org.bukkit.enchantments.Enchantment {
+        private final org.bukkit.NamespacedKey key;
+
+        public TestEnchantment(org.bukkit.NamespacedKey key) {
+            this.key = key;
+        }
+
+        @Override
+        public org.bukkit.NamespacedKey getKey() {
+            return key;
+        }
+
+        @Override
+        public String getName() {
+            return key.getKey().toUpperCase(java.util.Locale.US);
+        }
+
+        @Override
+        public int getMaxLevel() {
+            return 10;
+        }
+
+        @Override
+        public int getStartLevel() {
+            return 1;
+        }
+
+        @Override
+        public org.bukkit.enchantments.EnchantmentTarget getItemTarget() {
+            return null;
+        }
+
+        @Override
+        public boolean isTreasure() {
+            return false;
+        }
+
+        @Override
+        public boolean isCursed() {
+            return false;
+        }
+
+        @Override
+        public boolean conflictsWith(org.bukkit.enchantments.Enchantment other) {
+            return false;
+        }
+
+        @Override
+        public boolean canEnchantItem(org.bukkit.inventory.ItemStack item) {
+            return true;
+        }
+
+        @Override
+        public String getTranslationKey() {
+            return key.getKey();
+        }
+
+        @Override
+        public boolean isRegistered() {
+            return false;
+        }
+
+        @Override
+        public org.bukkit.NamespacedKey getKeyOrNull() {
+            return key;
+        }
+
+        @Override
+        public org.bukkit.NamespacedKey getKeyOrThrow() {
+            return key;
+        }
+    }
+}

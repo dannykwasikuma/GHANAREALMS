@@ -1,0 +1,127 @@
+# ============================================================================
+#  PizzaNetworkCore — Server Branding
+# ============================================================================
+#  Two interchangeable brand profiles share the SAME plugins, world, database,
+#  and internal/command names (pizza+, /pizzaplus, etc. never change). Only the
+#  player-facing DISPLAY NAME and COLORS differ.
+#
+#  TO SWITCH BRANDS:
+#    1. Set  active:  to  pizzasmp  or  horizonsmp  (or run /branding set <name>)
+#    2. Restart the SMP (the limbo gives a zero-downtime restart).
+#  Everything re-themes at boot: scoreboard, tab, chat prefixes, menus, GUIs,
+#  dialogs, MOTD, join messages, and the server icon.
+#
+#  HOW COLORS ARE USED:
+#    Messages use the literal token  &#00BFFF  as the "primary" colour marker.
+#    At runtime that token is rewritten to the ACTIVE profile's primary colour,
+#    so the same code restyles for either brand. Other role colours are applied
+#    where the UI references them (info/success/danger/...).
+#    Hex values are WITHOUT the leading '#'.
+# ============================================================================
+
+active: ghanarealms
+
+profiles:
+
+  # -------------------------------------------------------------------------
+  ghanarealms:
+    display: "GhanaRealms"       # full name shown in HUD title, MOTD, messages
+    short:   "GhanaRealms"       # short form for tight spaces
+    region:  "West Africa"       # region label
+    tagline: "Survival"          # game-mode / subtitle line
+    discord: "discord.gg/z5uwKstfp4"
+    server_icon: "server-icon.png"     # file in server root (read at boot)
+    tiers:
+      plus:     "GhanaRealms+"   # display label for the plus subscription
+      plusplus: "GhanaRealms++"  # display label for the plusplus subscription
+    colors:
+      # Ghana flag palette: red, gold/yellow, green, plus black star accent
+      primary: "FCD116"          # gold/yellow - headers, links, the &#00BFFF token
+      info:    "FCD116"          # informational text
+      success: "006B3F"          # green - success / positive
+      warning: "FCD116"          # gold - caution
+      danger:  "CE1126"          # red - errors / blocked actions
+      muted:   "AAAAAA"          # secondary / grey text
+      text:    "FFFFFF"          # default body text
+    # Server-list MOTD. {region} is substituted. Proxy uses minimessage; backend uses legacy.
+    motd:
+      minimessage: "<#CE1126>Ghana<#FCD116>Realms <gray>{region}"
+      legacy: "§\n§6ɢʜᴀɴᴀʀᴇᴀʟᴍꜱ\n§c{region}"
+    # LuckPerms rank prefix colours (hex, no #). 'keep' = leave the group untouched.
+    ranks:
+      owner:    "CE1126"
+      co-owner: "CE1126"
+      sradmin:  "FCD116"
+      admin:    "FCD116"
+      srmod:    "006B3F"
+      mod:      "006B3F"
+      dev:      "keep"           # dev stays purple
+
+  # -------------------------------------------------------------------------
+  pizzasmp:
+    display: "PizzaSMP"          # full name shown in HUD title, MOTD, messages
+    short:   "Pizza"             # short form for tight spaces
+    region:  "NA-East"           # region label
+    tagline: "Survival"          # game-mode / subtitle line
+    discord: "discord.gg/YvVJPAg92n"
+    server_icon: "server-icon.png"     # file in server root (read at boot)
+    tiers:
+      plus:     "Pizza+"         # display label for the pizza+ subscription
+      plusplus: "Pizza++"        # display label for the pizza++ subscription
+    colors:
+      primary: "00BFFF"          # accent: headers, links, the &#00BFFF token
+      info:    "00BFFF"          # informational text
+      success: "55FF55"          # success / positive
+      warning: "FFAA00"          # caution
+      danger:  "FF5555"          # errors / blocked actions
+      muted:   "AAAAAA"          # secondary / grey text
+      text:    "FFFFFF"          # default body text
+    # Server-list MOTD. {region} is substituted. Proxy uses minimessage; backend uses legacy.
+    motd:
+      minimessage: "<aqua>PizzaSMP <gray>{region}"
+      legacy: "§\n§cꜱᴜʀᴠɪᴠᴀʟ\n§bPizzaSMP §7{region}"
+    # LuckPerms rank prefix colours (hex, no #). 'keep' = leave the group untouched.
+    # apply-branding.sh recolours the leading colour of each group's prefix via lp.
+    ranks:
+      owner:    "00BFFF"
+      co-owner: "00BFFF"
+      sradmin:  "FF5555"
+      admin:    "FF5555"
+      srmod:    "55FF55"
+      mod:      "55FF55"
+      dev:      "keep"           # dev stays purple
+
+  # -------------------------------------------------------------------------
+  # Horizon SMP — palette from the supplied schema (role-based mapping):
+  #   Horizon Gold = primary/headers, Mist Teal = info/links,
+  #   Pasture = success, Ember Coral = danger/CTA, Cloud = body text,
+  #   Dusk-violet tint = muted.
+  horizonsmp:
+    display: "Horizon SMP"
+    short:   "Horizon"
+    region:  "NA-East"
+    tagline: "Survival"
+    discord: "discord.gg/yZWSF79uYf"
+    server_icon: "server-icon.png"
+    tiers:
+      plus:     "Horizon+"
+      plusplus: "Horizon++"
+    colors:
+      primary: "F4A259"          # Horizon Gold  — the glow / primary accent
+      info:    "4CC9B0"          # Mist Teal     — links / info / crossplay
+      success: "6A994E"          # Pasture       — success / member
+      warning: "F4A259"          # Horizon Gold  — caution (reuses the glow)
+      danger:  "E76F51"          # Ember Coral   — errors / calls to action
+      muted:   "9990BE"          # Dusk-violet tint — secondary text
+      text:    "EDE7F0"          # Cloud         — body text on dark
+    motd:
+      minimessage: "<#F4A259>Horizon SMP <#4CC9B0>{region}"
+      legacy: "§\n§6ꜱᴜʀᴠɪᴠᴀʟ\n§#F4A259Horizon SMP §#4CC9B0{region}"
+    ranks:
+      owner:    "F4A259"         # Horizon Gold
+      co-owner: "F4A259"
+      sradmin:  "E76F51"         # Ember Coral
+      admin:    "E76F51"
+      srmod:    "6A994E"         # Pasture
+      mod:      "6A994E"
+      dev:      "keep"           # dev stays purple

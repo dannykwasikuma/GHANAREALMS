@@ -1,0 +1,5933 @@
+package com.bx.ultimateDonutSmp.managers;
+
+import com.bx.ultimateDonutSmp.UltimateDonutSmp;
+import com.bx.ultimateDonutSmp.utils.ItemSerializationUtils;
+import com.bx.ultimateDonutSmp.utils.LazyLocation;
+import com.bx.ultimateDonutSmp.models.Bounty;
+import com.bx.ultimateDonutSmp.models.PlayerLogEntry;
+import com.bx.ultimateDonutSmp.models.PlayerWipeArchive;
+import com.bx.ultimateDonutSmp.models.FreezeState;
+import com.bx.ultimateDonutSmp.models.Home;
+import com.bx.ultimateDonutSmp.models.HideMode;
+import com.bx.ultimateDonutSmp.models.HideState;
+import com.bx.ultimateDonutSmp.models.IgnoreEntry;
+import com.bx.ultimateDonutSmp.models.PlayerData;
+import com.bx.ultimateDonutSmp.models.PunishmentFilterState;
+import com.bx.ultimateDonutSmp.models.PunishmentQuery;
+import com.bx.ultimateDonutSmp.models.PunishmentRecord;
+import com.bx.ultimateDonutSmp.models.PunishmentScope;
+import com.bx.ultimateDonutSmp.models.PunishmentSortOrder;
+import com.bx.ultimateDonutSmp.models.PunishmentType;
+import com.bx.ultimateDonutSmp.models.SellCategory;
+import com.bx.ultimateDonutSmp.models.SpawnerInstance;
+import com.bx.ultimateDonutSmp.models.SpawnerLootEntry;
+import com.bx.ultimateDonutSmp.models.StaffModeState;
+import com.bx.ultimateDonutSmp.models.Team;
+import com.bx.ultimateDonutSmp.staff.StaffInventorySnapshot;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.inventory.ItemStack;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.ReplaceOptions;
+import org.bson.Document;
+
+import java.io.File;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.*;
+import java.util.*;
+import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class DatabaseManager {
+
+    public record SellHistoryEntry(String itemName, int amount, double price, long timestamp) {}
+
+    public record TopSoldItemEntry(String itemName, long totalAmount, double totalRevenue, int count) {}
+
+    public record TopSellerEntry(UUID playerUuid, String playerName, double totalEarned, long totalAmountSold, int count) {}
+
+    public record GlobalSellHistoryEntry(UUID playerUuid, String playerName, String itemName, int amount, double price, long timestamp) {}
+
+    public record HourlyActivityEntry(String hourLabel, int salesCount, int purchaseCount) {}
+
+    public record TopBuyerEntry(UUID playerUuid, String playerName, double totalSpent) {}
+
+    public record AltAccountMatch(UUID uuid, String username, List<String> sharedIps, long lastSeenAt) {}
+
+    public record ServerWipePreview(Map<String, Integer> counts) {
+        public int count(String key) {
+            return counts.getOrDefault(key, 0);
+        }
+    }
+
+    public record ServerWipeResult(Map<String, Integer> affectedCounts) {
+        public int affected(String key) {
+            return affectedCounts.getOrDefault(key, 0);
+        }
+    }
+
+    public record PlayerWipePreview(Map<String, Integer> counts) {
+        public int count(String key) {
+            return counts.getOrDefault(key, 0);
+        }
+
+        public int total() {
+            int total = 0;
+            for (int value : counts.values()) {
+                total += value;
+            }
+            return total;
+        }
+    }
+
+    public record PlayerWipeResult(Map<String, Integer> affectedCounts) {
+        public int affected(String key) {
+            return affectedCounts.getOrDefault(key, 0);
+        }
+
+        public int total() {
+            int total = 0;
+            for (int value : affectedCounts.values()) {
+                total += value;
+            }
+            return total;
+        }
+    }
+
+    public enum DatabaseType {
+        SQLITE,
+        MYSQL,
+        MONGODB;
+
+        public static DatabaseType fromConfig(String raw) {
+            if (raw == null || raw.isBlank()) {
+                return SQLITE;
+            }
+
+            String normalized = raw.trim().replace("-", "_").toUpperCase(Locale.ROOT);
+            if ("SQLLITE".equals(normalized)) {
+                return SQLITE;
+            }
+
+            try {
+                return DatabaseType.valueOf(normalized);
+            } catch (IllegalArgumentException ignored) {
+                return SQLITE;
+            }
+        }
+    }
+
+    private static final Pattern CREATE_INDEX_PATTERN = Pattern.compile(
+            "^CREATE\\s+INDEX\\s+IF\\s+NOT\\s+EXISTS\\s+([A-Za-z0-9_]+)\\s+ON\\s+([A-Za-z0-9_]+)\\s*\\((.+)\\)\\s*$",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+    );
+    private static final String MONGO_SCHEMA_COLLECTION = "_schema";
+
+    private final UltimateDonutSmp plugin;
+    private HikariDataSource hikariDataSource;
+    private Connection rawConnection;
+    private Connection connection;
+    private DatabaseType databaseType = DatabaseType.SQLITE;
+    private MongoClient mongoClient;
+    private MongoDatabase mongoDatabase;
+    private boolean mongoBridgeActive;
+    private ExecutorService asyncExecutor;
+    private final Map<UUID, String> usernameCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, UUID> uuidByUsernameCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public DatabaseManager(UltimateDonutSmp plugin) {
+        this.plugin = plugin;
+    }
+
+    public void initialize() {
+        try {
+            databaseType = DatabaseType.fromConfig(getDatabaseConfig().getString("DATABASE.TYPE", "SQLITE"));
+            if (databaseType == DatabaseType.MYSQL) {
+                asyncExecutor = Executors.newFixedThreadPool(4, r -> {
+                    Thread thread = new Thread(r, "UltimateDonutSmp-DBWriter");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+            } else {
+                asyncExecutor = Executors.newSingleThreadExecutor(r -> {
+                    Thread thread = new Thread(r, "UltimateDonutSmp-DBWriter");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+            }
+
+            switch (databaseType) {
+                case MYSQL -> initializeMySqlConnection();
+                case MONGODB -> initializeMongoBridgeConnection();
+                case SQLITE -> initializeSqliteConnection(resolveConfiguredFile("DATABASE.SQLITE.FILE", "data/data.db"));
+            }
+
+            createTables();
+            ensurePlayerColumns();
+            ensurePortalColumns();
+            ensureTeamColumns();
+            ensureStaffModeColumns();
+            ensureHomeColumns();
+            ensureSpawnerColumns();
+
+            if (mongoBridgeActive) {
+                importMongoSnapshotIntoSqlite();
+            }
+
+            plugin.getLogger().info("Database connected successfully using " + databaseType.name() + ".");
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to initialize database", e);
+        }
+    }
+
+    private void initializeSqliteConnection(File dbFile) throws Exception {
+        Class.forName("org.sqlite.JDBC");
+        Files.createDirectories(dbFile.getParentFile().toPath());
+
+        File legacyDbFile = new File(plugin.getDataFolder(), "data.db");
+        migrateLegacyDatabase(legacyDbFile, dbFile);
+
+        rawConnection = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
+        connection = wrapConnection(rawConnection);
+        try (Statement st = connection.createStatement()) {
+            st.execute("PRAGMA journal_mode=WAL");
+            st.execute("PRAGMA synchronous=NORMAL");
+            st.execute("PRAGMA busy_timeout=15000");
+            st.execute("PRAGMA temp_store=MEMORY");
+        }
+    }
+
+    private void initializeMySqlConnection() throws Exception {
+        Class.forName("com.mysql.cj.jdbc.Driver");
+
+        FileConfiguration config = getDatabaseConfig();
+        String host = config.getString("DATABASE.MYSQL.HOST", "localhost");
+        int port = Math.max(1, Math.min(65535, config.getInt("DATABASE.MYSQL.PORT", 3306)));
+        String database = config.getString("DATABASE.MYSQL.DATABASE", "ultimatedonutsmp");
+        String username = config.getString("DATABASE.MYSQL.USERNAME", "root");
+        String password = config.getString("DATABASE.MYSQL.PASSWORD", "");
+        String parameters = config.getString("DATABASE.MYSQL.PARAMETERS",
+                "usessl=false&allowpublickeyretrieval=true&servertimezone=utc&characterencoding=utf8");
+
+        if (config.getBoolean("DATABASE.MYSQL.CREATE-DATABASE", true)) {
+            String serverUrl = "jdbc:mysql://" + host + ":" + port + "/" + appendJdbcParameters(parameters);
+            try (Connection setupConnection = DriverManager.getConnection(serverUrl, username, password);
+                 Statement statement = setupConnection.createStatement()) {
+                statement.executeUpdate("CREATE DATABASE IF NOT EXISTS `" + escapeMySqlIdentifier(database) + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
+        }
+
+        String url = "jdbc:mysql://" + host + ":" + port + "/" + database + appendJdbcParameters(parameters);
+
+        HikariConfig hikariConfig = new HikariConfig();
+        hikariConfig.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        hikariConfig.setJdbcUrl(url);
+        hikariConfig.setUsername(username);
+        hikariConfig.setPassword(password);
+        hikariConfig.setMaximumPoolSize(Math.max(2, config.getInt("DATABASE.MYSQL.POOL.MAX-SIZE", 10)));
+        hikariConfig.setMinimumIdle(Math.max(1, config.getInt("DATABASE.MYSQL.POOL.MIN-IDLE", 2)));
+        hikariConfig.setIdleTimeout(config.getLong("DATABASE.MYSQL.POOL.IDLE-TIMEOUT", 30000L));
+        hikariConfig.setMaxLifetime(config.getLong("DATABASE.MYSQL.POOL.MAX-LIFETIME", 1800000L));
+        hikariConfig.setConnectionTimeout(config.getLong("DATABASE.MYSQL.POOL.CONNECTION-TIMEOUT", 10000L));
+        hikariConfig.setPoolName("UltimateDonutSMP-HikariPool");
+
+        hikariDataSource = new HikariDataSource(hikariConfig);
+        rawConnection = hikariDataSource.getConnection();
+        connection = wrapConnection(rawConnection);
+    }
+
+    private void initializeMongoBridgeConnection() throws Exception {
+        FileConfiguration config = getDatabaseConfig();
+        String uri = config.getString("DATABASE.MONGODB.URI", "mongodb://localhost:27017");
+        String database = config.getString("DATABASE.MONGODB.DATABASE", "ultimatedonutsmp");
+
+        mongoClient = MongoClients.create(uri);
+        mongoDatabase = mongoClient.getDatabase(database);
+        mongoDatabase.runCommand(new Document("ping", 1));
+
+        mongoBridgeActive = true;
+        initializeSqliteConnection(resolveConfiguredFile("DATABASE.MONGODB.CACHE-FILE", "data/mongodb-cache.db"));
+    }
+
+    private void migrateLegacyDatabase(File legacyDbFile, File dbFile) throws IOException {
+        if (!legacyDbFile.exists() || dbFile.exists()) {
+            return;
+        }
+
+        Files.move(legacyDbFile.toPath(), dbFile.toPath());
+        moveLegacySqliteCompanionFile(legacyDbFile, dbFile, "-wal");
+        moveLegacySqliteCompanionFile(legacyDbFile, dbFile, "-shm");
+        plugin.getLogger().info("Moved legacy database to " + dbFile.getPath());
+    }
+
+    private void moveLegacySqliteCompanionFile(File legacyDbFile, File dbFile, String suffix) throws IOException {
+        File legacyFile = new File(legacyDbFile.getParentFile(), legacyDbFile.getName() + suffix);
+        File newFile = new File(dbFile.getParentFile(), dbFile.getName() + suffix);
+        if (legacyFile.exists() && !newFile.exists()) {
+            Files.move(legacyFile.toPath(), newFile.toPath());
+        }
+    }
+
+    private File resolveConfiguredFile(String path, String fallback) {
+        String configuredPath = getDatabaseConfig().getString(path, fallback);
+        File file = new File(configuredPath == null || configuredPath.isBlank() ? fallback : configuredPath);
+        if (file.isAbsolute()) {
+            return file;
+        }
+        return new File(plugin.getDataFolder(), configuredPath == null || configuredPath.isBlank() ? fallback : configuredPath);
+    }
+
+    private String appendJdbcParameters(String parameters) {
+        if (parameters == null || parameters.isBlank()) {
+            return "";
+        }
+        return parameters.trim().startsWith("?") ? parameters.trim() : "?" + parameters.trim();
+    }
+
+    private String escapeMySqlIdentifier(String identifier) {
+        return identifier == null ? "" : identifier.replace("`", "``");
+    }
+
+    private FileConfiguration getDatabaseConfig() {
+        return plugin.getConfigManager().getDatabase();
+    }
+
+    private void createTables() throws SQLException {
+        execute(
+            "CREATE TABLE IF NOT EXISTS players (" +
+            "  uuid TEXT PRIMARY KEY," +
+            "  username TEXT," +
+            "  money REAL DEFAULT 0," +
+            "  shards INTEGER DEFAULT 0," +
+            "  kills INTEGER DEFAULT 0," +
+            "  deaths INTEGER DEFAULT 0," +
+            "  playtime_seconds INTEGER DEFAULT 0," +
+            "  blocks_placed INTEGER DEFAULT 0," +
+            "  blocks_broken INTEGER DEFAULT 0," +
+            "  mobs_killed INTEGER DEFAULT 0," +
+            "  kill_streak INTEGER DEFAULT 0," +
+            "  highest_kill_streak INTEGER DEFAULT 0," +
+            "  money_spent REAL DEFAULT 0," +
+            "  money_made REAL DEFAULT 0," +
+            "  tpauto INTEGER DEFAULT 0," +
+            "  phantom_enabled INTEGER DEFAULT 1," +
+            "  payments_enabled INTEGER DEFAULT 1," +
+            "  scoreboard_visible INTEGER DEFAULT 1," +
+            "  pay_alerts_enabled INTEGER DEFAULT 1," +
+            "  hotbar_messages_enabled INTEGER DEFAULT 1," +
+            "  worth_display_enabled INTEGER DEFAULT 1," +
+            "  money_nametags_enabled INTEGER DEFAULT 0," +
+            "  clear_entities_messages_enabled INTEGER DEFAULT 1," +
+            "  bounty_alerts_enabled INTEGER DEFAULT 1," +
+            "  tpa_confirm_menu_enabled INTEGER DEFAULT 1," +
+            "  voice_chat_consent INTEGER DEFAULT 0," +
+            "  chainmail_on_respawn_enabled INTEGER DEFAULT 1," +
+            "  lunar_teammates_enabled INTEGER DEFAULT 1," +
+            "  tpa_requests_enabled INTEGER DEFAULT 1," +
+            "  auto_tpahere_enabled INTEGER DEFAULT 0," +
+            "  tpahere_requests_enabled INTEGER DEFAULT 1," +
+            "  team_invites_enabled INTEGER DEFAULT 1," +
+            "  mob_spawn_enabled INTEGER DEFAULT 1," +
+              "  pay_confirm_menu_enabled INTEGER DEFAULT 1," +
+              "  totem_particles_enabled INTEGER DEFAULT 1," +
+              "  fast_crystals_enabled INTEGER DEFAULT 1," +
+              "  amethyst_break_messages_enabled INTEGER DEFAULT 1," +
+              "  private_messages_enabled INTEGER DEFAULT 1," +
+              "  keyall_notifications_enabled INTEGER DEFAULT 1," +
+              "  duel_requests_enabled INTEGER DEFAULT 1," +
+              "  public_chat_enabled INTEGER DEFAULT 1," +
+              "  server_broadcasts_enabled INTEGER DEFAULT 1," +
+              "  auction_notifications_enabled INTEGER DEFAULT 1," +
+              "  explosion_particles_enabled INTEGER DEFAULT 1," +
+              "  hide_all_players_enabled INTEGER DEFAULT 0," +
+              "  notification_sounds_enabled INTEGER DEFAULT 1," +
+              "  rtp_coordinates_enabled INTEGER DEFAULT 1," +
+              "  order_notifications_enabled INTEGER DEFAULT 1," +
+              "  team_chat_visible INTEGER DEFAULT 1," +
+              "  duel_music_enabled INTEGER DEFAULT 1," +
+              "  quiet_spawn_enabled INTEGER DEFAULT 0," +
+              "  night_vision_enabled INTEGER DEFAULT 0," +
+              "  keyall_remaining_seconds INTEGER DEFAULT -1," +
+              "  shard_booster_expiry INTEGER DEFAULT 0," +
+              "  mob_spawn_disabled_until BIGINT DEFAULT 0," +
+              "  phantom_disabled_until BIGINT DEFAULT 0," +
+              "  destroy_pearl_on_death INTEGER DEFAULT 1," +
+              "  randomized_coords INTEGER DEFAULT 0," +
+              "  death_messages_choice INTEGER DEFAULT 1," +
+              "  advancement_messages_choice INTEGER DEFAULT 1," +
+              "  join_leave_messages_choice INTEGER DEFAULT 1," +
+              "  teleport_alerts_enabled INTEGER DEFAULT 1," +
+              "  follow_alerts_enabled INTEGER DEFAULT 1," +
+              "  explosion_sounds_enabled INTEGER DEFAULT 1," +
+              "  display_donutplus_enabled INTEGER DEFAULT 1," +
+              "  show_money_line INTEGER DEFAULT 1," +
+              "  show_shards_line INTEGER DEFAULT 1," +
+              "  show_kills_line INTEGER DEFAULT 1," +
+              "  show_deaths_line INTEGER DEFAULT 1," +
+              "  show_playtime_line INTEGER DEFAULT 1," +
+              "  combat_timer_enabled INTEGER DEFAULT 1" +
+              ")"
+          );
+        execute(
+            "CREATE TABLE IF NOT EXISTS player_ip_history (" +
+            "  player_uuid TEXT NOT NULL," +
+            "  ip_address TEXT NOT NULL," +
+            "  first_seen INTEGER NOT NULL DEFAULT 0," +
+            "  last_seen INTEGER NOT NULL DEFAULT 0," +
+            "  PRIMARY KEY (player_uuid, ip_address)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS player_ignores (" +
+            "  owner_uuid TEXT NOT NULL," +
+            "  ignored_uuid TEXT NOT NULL," +
+            "  ignored_name_snapshot TEXT," +
+            "  created_at INTEGER NOT NULL," +
+            "  PRIMARY KEY (owner_uuid, ignored_uuid)" +
+            ")"
+        );
+        execute("CREATE INDEX IF NOT EXISTS idx_player_ignores_owner ON player_ignores(owner_uuid)");
+        execute("CREATE INDEX IF NOT EXISTS idx_player_ignores_ignored ON player_ignores(ignored_uuid)");
+        execute(
+            "CREATE TABLE IF NOT EXISTS player_friends (" +
+            "  follower_uuid TEXT NOT NULL," +
+            "  followed_uuid TEXT NOT NULL," +
+            "  followed_name_snapshot TEXT," +
+            "  transactions_enabled INTEGER NOT NULL DEFAULT 0," +
+            "  messages_enabled INTEGER NOT NULL DEFAULT 1," +
+            "  payments_enabled INTEGER NOT NULL DEFAULT 1," +
+            "  activity_enabled INTEGER NOT NULL DEFAULT 1," +
+            "  tpa_auto_accept_enabled INTEGER NOT NULL DEFAULT 0," +
+            "  teleport_requests_enabled INTEGER NOT NULL DEFAULT 1," +
+            "  created_at INTEGER NOT NULL," +
+            "  PRIMARY KEY (follower_uuid, followed_uuid)" +
+            ")"
+        );
+        execute("CREATE INDEX IF NOT EXISTS idx_player_friends_follower ON player_friends(follower_uuid)");
+        execute("CREATE INDEX IF NOT EXISTS idx_player_friends_followed ON player_friends(followed_uuid)");
+        execute(
+            "CREATE TABLE IF NOT EXISTS teams (" +
+            "  name TEXT PRIMARY KEY," +
+            "  leader_uuid TEXT," +
+            "  home_world TEXT," +
+            "  home_x REAL," +
+            "  home_y REAL," +
+            "  home_z REAL," +
+            "  home_yaw REAL," +
+            "  home_pitch REAL," +
+            "  friendly_fire_enabled INTEGER DEFAULT 0" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS team_members (" +
+            "  player_uuid TEXT," +
+            "  team_name TEXT," +
+            "  can_edit_home INTEGER DEFAULT 0," +
+            "  can_manage_teammates INTEGER DEFAULT 0," +
+            "  can_toggle_pvp INTEGER DEFAULT 0," +
+            "  can_visit_home INTEGER DEFAULT 1," +
+            "  can_use_team_chat INTEGER DEFAULT 1," +
+            "  PRIMARY KEY (player_uuid)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS homes (" +
+            "  player_uuid TEXT," +
+            "  home_name TEXT," +
+            "  world TEXT," +
+            "  x REAL, y REAL, z REAL," +
+            "  yaw REAL, pitch REAL," +
+            "  created_at BIGINT DEFAULT 0," +
+            "  PRIMARY KEY (player_uuid, home_name)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS bounties (" +
+            "  target_uuid TEXT PRIMARY KEY," +
+            "  amount REAL," +
+            "  placer_uuid TEXT" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS warps (" +
+            "  name TEXT PRIMARY KEY," +
+            "  world TEXT," +
+            "  x REAL, y REAL, z REAL," +
+            "  yaw REAL, pitch REAL" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS portals (" +
+            "  id TEXT PRIMARY KEY," +
+            "  display_name TEXT," +
+            "  cuboid_name TEXT," +
+            "  destination_type TEXT," +
+            "  destination_value TEXT," +
+            "  enabled INTEGER DEFAULT 1," +
+            "  permission TEXT," +
+            "  priority INTEGER DEFAULT 0," +
+            "  trigger_cooldown_ms INTEGER DEFAULT 1500," +
+            "  enter_message TEXT," +
+            "  hologram_world TEXT," +
+            "  hologram_x REAL DEFAULT 0," +
+            "  hologram_y REAL DEFAULT 0," +
+            "  hologram_z REAL DEFAULT 0" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS sell_history (" +
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "  player_uuid TEXT," +
+            "  item_name TEXT," +
+            "  amount INTEGER," +
+            "  price REAL," +
+            "  timestamp INTEGER" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS punishments (" +
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "  target_uuid TEXT NOT NULL," +
+            "  target_name_snapshot TEXT," +
+            "  type TEXT NOT NULL," +
+            "  reason TEXT NOT NULL," +
+            "  issuer_uuid TEXT," +
+            "  issuer_name_snapshot TEXT," +
+            "  issued_at INTEGER NOT NULL," +
+            "  expires_at INTEGER," +
+            "  removed_by_uuid TEXT," +
+            "  removed_by_name_snapshot TEXT," +
+            "  removed_at INTEGER," +
+            "  removal_reason TEXT," +
+            "  source_server TEXT DEFAULT 'local'," +
+            "  scope TEXT DEFAULT 'SERVER'" +
+            ")"
+        );
+        execute("CREATE INDEX IF NOT EXISTS idx_punishments_target_issued ON punishments(target_uuid, issued_at DESC)");
+        execute("CREATE INDEX IF NOT EXISTS idx_punishments_target_type ON punishments(target_uuid, type)");
+        execute("CREATE INDEX IF NOT EXISTS idx_punishments_target_name ON punishments(target_name_snapshot)");
+        execute("CREATE INDEX IF NOT EXISTS idx_punishments_issued ON punishments(issued_at DESC)");
+        execute(
+            "CREATE TABLE IF NOT EXISTS freeze_states (" +
+            "  target_uuid TEXT PRIMARY KEY," +
+            "  target_name_snapshot TEXT," +
+            "  frozen_by_uuid TEXT," +
+            "  frozen_by_name_snapshot TEXT," +
+            "  frozen_at INTEGER NOT NULL," +
+            "  source_server TEXT DEFAULT 'local'," +
+            "  active INTEGER NOT NULL DEFAULT 1" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS staff_mode_states (" +
+            "  staff_uuid TEXT PRIMARY KEY," +
+            "  staff_name_snapshot TEXT," +
+            "  enabled_at INTEGER NOT NULL," +
+            "  source_server TEXT DEFAULT 'local'," +
+            "  vanish_active INTEGER NOT NULL DEFAULT 0," +
+            "  better_view_active INTEGER NOT NULL DEFAULT 0," +
+            "  snapshot_present INTEGER NOT NULL DEFAULT 0," +
+            "  previous_allow_flight INTEGER NOT NULL DEFAULT 0," +
+            "  previous_flying INTEGER NOT NULL DEFAULT 0," +
+            "  previous_selected_slot INTEGER NOT NULL DEFAULT 0," +
+            "  night_vision_owned INTEGER NOT NULL DEFAULT 0," +
+            "  previous_game_mode TEXT DEFAULT 'SURVIVAL'" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS staff_mode_snapshot_items (" +
+            "  staff_uuid TEXT NOT NULL," +
+            "  section TEXT NOT NULL," +
+            "  slot INTEGER NOT NULL," +
+            "  item_data TEXT," +
+            "  PRIMARY KEY (staff_uuid, section, slot)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS sell_progress (" +
+            "  player_uuid TEXT," +
+            "  category TEXT," +
+            "  earned REAL DEFAULT 0," +
+            "  PRIMARY KEY (player_uuid, category)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS cuboids (" +
+            "  name TEXT PRIMARY KEY," +
+            "  world TEXT," +
+            "  x1 INTEGER, y1 INTEGER, z1 INTEGER," +
+            "  x2 INTEGER, y2 INTEGER, z2 INTEGER" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS ender_chest_profiles (" +
+            "  player_uuid TEXT PRIMARY KEY," +
+            "  `rows` INTEGER DEFAULT 6," +
+            "  updated_at INTEGER DEFAULT 0" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS ender_chest_items (" +
+            "  player_uuid TEXT," +
+            "  slot INTEGER," +
+            "  item_data TEXT," +
+            "  PRIMARY KEY (player_uuid, slot)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS player_crate_keys (" +
+            "  player_uuid TEXT," +
+            "  crate_id TEXT," +
+            "  amount INTEGER DEFAULT 0," +
+            "  updated_at INTEGER DEFAULT 0," +
+            "  PRIMARY KEY (player_uuid, crate_id)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS server_wipe_commits (" +
+            "  wipe_id TEXT PRIMARY KEY," +
+            "  committed_at INTEGER NOT NULL" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS crate_blocks (" +
+            "  world TEXT," +
+            "  x INTEGER," +
+            "  y INTEGER," +
+            "  z INTEGER," +
+            "  crate_id TEXT," +
+            "  updated_at INTEGER DEFAULT 0," +
+            "  PRIMARY KEY (world, x, y, z)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS spawners (" +
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "  world TEXT NOT NULL," +
+            "  x INTEGER NOT NULL," +
+            "  y INTEGER NOT NULL," +
+            "  z INTEGER NOT NULL," +
+            "  owner_uuid TEXT NOT NULL," +
+            "  owner_name TEXT NOT NULL," +
+            "  mob_type TEXT NOT NULL," +
+            "  stack_amount INTEGER NOT NULL," +
+            "  access_mode TEXT NOT NULL," +
+            "  last_processed_at INTEGER NOT NULL," +
+            "  created_at INTEGER NOT NULL," +
+            "  updated_at INTEGER NOT NULL," +
+            "  disabled_loot_keys TEXT DEFAULT ''," +
+            "  UNIQUE(world, x, y, z)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS spawner_loot (" +
+            "  spawner_id INTEGER NOT NULL," +
+            "  loot_key TEXT NOT NULL," +
+            "  material TEXT NOT NULL," +
+            "  amount INTEGER NOT NULL," +
+            "  PRIMARY KEY (spawner_id, loot_key)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS hide_states (" +
+            "  player_uuid TEXT PRIMARY KEY," +
+            "  real_name_snapshot TEXT NOT NULL," +
+            "  mode TEXT NOT NULL," +
+            "  alias TEXT NOT NULL," +
+            "  alias_normalized TEXT NOT NULL UNIQUE," +
+            "  skin_key TEXT," +
+            "  skin_username TEXT," +
+            "  texture_value TEXT," +
+            "  texture_signature TEXT," +
+            "  created_at INTEGER NOT NULL," +
+            "  updated_at INTEGER NOT NULL" +
+            ")"
+        );
+        execute("CREATE INDEX IF NOT EXISTS idx_hide_states_alias ON hide_states(alias_normalized)");
+        execute(
+            "CREATE TABLE IF NOT EXISTS maintenance_locations (" +
+            "  uuid VARCHAR(36) NOT NULL," +
+            "  server_id VARCHAR(64) NOT NULL," +
+            "  world_name VARCHAR(128) NOT NULL," +
+            "  x DOUBLE NOT NULL," +
+            "  y DOUBLE NOT NULL," +
+            "  z DOUBLE NOT NULL," +
+            "  yaw FLOAT NOT NULL," +
+            "  pitch FLOAT NOT NULL," +
+            "  timestamp BIGINT NOT NULL," +
+            "  PRIMARY KEY (uuid, server_id)" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS duel_pending_returns (" +
+            "  uuid VARCHAR(36) NOT NULL PRIMARY KEY," +
+            "  world_name VARCHAR(128) NOT NULL," +
+            "  x DOUBLE NOT NULL," +
+            "  y DOUBLE NOT NULL," +
+            "  z DOUBLE NOT NULL," +
+            "  yaw FLOAT NOT NULL," +
+            "  pitch FLOAT NOT NULL," +
+            "  timestamp BIGINT NOT NULL" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS player_logs (" +
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+            "  player_uuid TEXT NOT NULL," +
+            "  player_name TEXT NOT NULL," +
+            "  category TEXT NOT NULL," +
+            "  log_type TEXT NOT NULL," +
+            "  details TEXT NOT NULL," +
+            "  timestamp INTEGER NOT NULL" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS sell_summary_items (" +
+            "  item_name TEXT PRIMARY KEY," +
+            "  total_amount INTEGER DEFAULT 0," +
+            "  total_revenue REAL DEFAULT 0," +
+            "  sell_count INTEGER DEFAULT 0" +
+            ")"
+        );
+        execute(
+            "CREATE TABLE IF NOT EXISTS sell_summary_players (" +
+            "  player_uuid TEXT PRIMARY KEY," +
+            "  total_earned REAL DEFAULT 0," +
+            "  total_amount INTEGER DEFAULT 0," +
+            "  sell_count INTEGER DEFAULT 0" +
+            ")"
+        );
+        execute("CREATE INDEX IF NOT EXISTS idx_player_logs_uuid_time ON player_logs(player_uuid, timestamp)");
+        execute("CREATE INDEX IF NOT EXISTS idx_player_logs_type_time ON player_logs(log_type, timestamp)");
+        execute("CREATE INDEX IF NOT EXISTS idx_sell_history_player ON sell_history(player_uuid)");
+        execute("CREATE INDEX IF NOT EXISTS idx_sell_history_timestamp ON sell_history(timestamp)");
+        execute("CREATE INDEX IF NOT EXISTS idx_sell_history_item ON sell_history(item_name)");
+        execute("CREATE INDEX IF NOT EXISTS idx_players_money_spent ON players(money_spent)");
+        execute("CREATE INDEX IF NOT EXISTS idx_sell_sum_item_rev ON sell_summary_items(total_revenue DESC)");
+        execute("CREATE INDEX IF NOT EXISTS idx_sell_sum_item_vol ON sell_summary_items(total_amount DESC)");
+        execute("CREATE INDEX IF NOT EXISTS idx_sell_sum_play_earn ON sell_summary_players(total_earned DESC)");
+        fixNullTimestamps();
+        ensureSellSummariesPopulated();
+    }
+
+    private void ensurePlayerColumns() throws SQLException {
+        ensureColumnExists("players", "blocks_placed", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "blocks_broken", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "mobs_killed", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "kill_streak", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "highest_kill_streak", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "money_spent", "REAL DEFAULT 0");
+        ensureColumnExists("players", "money_made", "REAL DEFAULT 0");
+        ensureColumnExists("players", "scoreboard_visible", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "pay_alerts_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "hotbar_messages_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "worth_display_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "money_nametags_enabled", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "clear_entities_messages_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "bounty_alerts_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "tpa_confirm_menu_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "voice_chat_consent", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "chainmail_on_respawn_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "lunar_teammates_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "tpa_requests_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "auto_tpahere_enabled", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "tpahere_requests_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "team_invites_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "mob_spawn_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "pay_confirm_menu_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "totem_particles_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "fast_crystals_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "amethyst_break_messages_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "private_messages_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "keyall_notifications_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "duel_requests_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "public_chat_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "server_broadcasts_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "auction_notifications_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "explosion_particles_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "hide_all_players_enabled", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "notification_sounds_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "rtp_coordinates_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "order_notifications_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "team_chat_visible", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "duel_music_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "quiet_spawn_enabled", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "night_vision_enabled", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "keyall_remaining_seconds", "INTEGER DEFAULT -1");
+        ensureColumnExists("players", "shard_booster_expiry", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "mob_spawn_disabled_until", "BIGINT DEFAULT 0");
+        ensureColumnExists("players", "phantom_disabled_until", "BIGINT DEFAULT 0");
+        ensureColumnExists("players", "destroy_pearl_on_death", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "randomized_coords", "INTEGER DEFAULT 0");
+        ensureColumnExists("players", "death_messages_choice", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "advancement_messages_choice", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "join_leave_messages_choice", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "teleport_alerts_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "follow_alerts_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "explosion_sounds_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "display_donutplus_enabled", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "show_money_line", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "show_shards_line", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "show_kills_line", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "show_deaths_line", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "show_playtime_line", "INTEGER DEFAULT 1");
+        ensureColumnExists("players", "combat_timer_enabled", "INTEGER DEFAULT 1");
+    }
+
+    private void ensurePortalColumns() throws SQLException {
+        ensureColumnExists("portals", "hologram_world", "TEXT");
+        ensureColumnExists("portals", "hologram_x", "REAL DEFAULT 0");
+        ensureColumnExists("portals", "hologram_y", "REAL DEFAULT 0");
+        ensureColumnExists("portals", "hologram_z", "REAL DEFAULT 0");
+    }
+
+    private void ensureTeamColumns() throws SQLException {
+        ensureColumnExists("teams", "friendly_fire_enabled", "INTEGER DEFAULT 0");
+
+        boolean legacyPvpColumnExists = hasColumn("team_members", "pvp_enabled");
+        boolean toggleColumnExists = hasColumn("team_members", "can_toggle_pvp");
+
+        ensureColumnExists("team_members", "can_toggle_pvp", "INTEGER DEFAULT 0");
+        ensureColumnExists("team_members", "can_visit_home", "INTEGER DEFAULT 1");
+        ensureColumnExists("team_members", "can_use_team_chat", "INTEGER DEFAULT 1");
+
+        if (legacyPvpColumnExists && !toggleColumnExists) {
+            execute("UPDATE team_members SET can_toggle_pvp = COALESCE(pvp_enabled, 0)");
+        }
+    }
+
+    private void ensureStaffModeColumns() throws SQLException {
+        ensureColumnExists("staff_mode_states", "previous_game_mode", "TEXT DEFAULT 'SURVIVAL'");
+    }
+
+    private void ensureHomeColumns() throws SQLException {
+        ensureColumnExists("homes", "created_at", "BIGINT DEFAULT 0");
+    }
+
+    private void ensureSpawnerColumns() throws SQLException {
+        ensureColumnExists("spawners", "disabled_loot_keys", "TEXT DEFAULT ''");
+        ensureColumnExists("spawners", "stored_xp", "REAL DEFAULT 0.0");
+    }
+
+    private void ensureColumnExists(String table, String column, String definition) throws SQLException {
+        if (hasColumn(table, column)) return;
+        try (Statement st = connection.createStatement()) {
+            st.execute(adaptSchemaSql("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition));
+        }
+    }
+
+    public boolean hasColumn(String table, String column) throws SQLException {
+        if (!isMySql()) {
+            try (Statement st = connection.createStatement();
+                 ResultSet rs = st.executeQuery("PRAGMA table_info(" + table + ")")) {
+                while (rs.next()) {
+                    if (column.equalsIgnoreCase(rs.getString("name"))) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        DatabaseMetaData metaData = connection.getMetaData();
+        try (ResultSet rs = metaData.getColumns(connection.getCatalog(), null, table, null)) {
+            while (rs.next()) {
+                if (column.equalsIgnoreCase(rs.getString("COLUMN_NAME"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public synchronized PlayerData loadPlayer(UUID uuid) {
+        if (uuid == null) {
+            return null;
+        }
+
+        if (hikariDataSource != null && !hikariDataSource.isClosed()) {
+            try (Connection conn = hikariDataSource.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("SELECT * FROM players WHERE uuid = ?")) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        PlayerData data = mapPlayerRow(rs);
+                        if (data != null && data.getUsername() != null && !data.getUsername().isBlank()) {
+                            usernameCache.put(uuid, data.getUsername());
+                            uuidByUsernameCache.put(data.getUsername().toLowerCase(Locale.ROOT), uuid);
+                        }
+                        return data;
+                    }
+                }
+            } catch (SQLException e) {
+                if (plugin != null) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to load player " + uuid, e);
+                }
+            }
+            return null;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement("SELECT * FROM players WHERE uuid = ?")) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    PlayerData data = mapPlayerRow(rs);
+                    if (data != null && data.getUsername() != null && !data.getUsername().isBlank()) {
+                        usernameCache.put(uuid, data.getUsername());
+                        uuidByUsernameCache.put(data.getUsername().toLowerCase(Locale.ROOT), uuid);
+                    }
+                    return data;
+                }
+            }
+        } catch (SQLException e) {
+            if (plugin != null) {
+                plugin.getLogger().log(Level.WARNING, "Failed to load player " + uuid, e);
+            }
+        }
+        return null;
+    }
+
+    public List<PlayerData> loadAllPlayers() {
+        List<PlayerData> players = new ArrayList<>();
+        try (Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT * FROM players")) {
+            while (rs.next()) {
+                players.add(mapPlayerRow(rs));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load all players", e);
+        }
+        return players;
+    }
+
+    public List<HideState> loadAllHideStates() {
+        List<HideState> states = new ArrayList<>();
+        try (Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT * FROM hide_states ORDER BY created_at ASC")) {
+            while (rs.next()) {
+                states.add(mapHideState(rs));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load Hide states", e);
+        }
+        return states;
+    }
+
+    public HideState loadHideState(UUID playerUuid) {
+        if (playerUuid == null) {
+            return null;
+        }
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM hide_states WHERE player_uuid = ?")) {
+            ps.setString(1, playerUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapHideState(rs) : null;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load Hide state for " + playerUuid, e);
+            return null;
+        }
+    }
+
+    public synchronized boolean saveHideState(HideState state) {
+        if (state == null || state.playerUuid() == null) {
+            return false;
+        }
+
+        boolean autoCommitDisabled = false;
+        boolean originalAutoCommit = true;
+        try {
+            originalAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            autoCommitDisabled = true;
+            try (PreparedStatement delete = connection.prepareStatement(
+                    "DELETE FROM hide_states WHERE player_uuid = ?")) {
+                delete.setString(1, state.playerUuid().toString());
+                delete.executeUpdate();
+            }
+            try (PreparedStatement insert = connection.prepareStatement(
+                    "INSERT INTO hide_states (player_uuid, real_name_snapshot, mode, alias, alias_normalized, " +
+                    "skin_key, skin_username, texture_value, texture_signature, created_at, updated_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                insert.setString(1, state.playerUuid().toString());
+                insert.setString(2, state.realNameSnapshot());
+                insert.setString(3, state.mode().name());
+                insert.setString(4, state.alias());
+                insert.setString(5, state.aliasNormalized());
+                insert.setString(6, state.skinKey());
+                insert.setString(7, state.skinUsername());
+                insert.setString(8, state.textureValue());
+                insert.setString(9, state.textureSignature());
+                insert.setLong(10, state.createdAt());
+                insert.setLong(11, state.updatedAt());
+                insert.executeUpdate();
+            }
+            connection.commit();
+            return true;
+        } catch (SQLException e) {
+            if (autoCommitDisabled) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackError) {
+                    e.addSuppressed(rollbackError);
+                }
+            }
+            if (!isUniqueConstraintViolation(e)) {
+                plugin.getLogger().log(Level.WARNING, "Failed to save Hide state for " + state.playerUuid(), e);
+            }
+            return false;
+        } finally {
+            if (autoCommitDisabled) {
+                try {
+                    connection.setAutoCommit(originalAutoCommit);
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to restore database auto-commit", e);
+                }
+            }
+        }
+    }
+
+    public void deleteHideState(UUID playerUuid) {
+        if (playerUuid == null) {
+            return;
+        }
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM hide_states WHERE player_uuid = ?")) {
+            ps.setString(1, playerUuid.toString());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete Hide state for " + playerUuid, e);
+        }
+    }
+
+    private HideState mapHideState(ResultSet rs) throws SQLException {
+        HideMode mode;
+        try {
+            mode = HideMode.valueOf(rs.getString("mode").toUpperCase(Locale.ROOT));
+        } catch (RuntimeException ignored) {
+            mode = HideMode.SCRAMBLE;
+        }
+        return new HideState(
+                UUID.fromString(rs.getString("player_uuid")),
+                rs.getString("real_name_snapshot"),
+                mode,
+                rs.getString("alias"),
+                rs.getString("alias_normalized"),
+                rs.getString("skin_key"),
+                rs.getString("skin_username"),
+                rs.getString("texture_value"),
+                rs.getString("texture_signature"),
+                rs.getLong("created_at"),
+                rs.getLong("updated_at")
+        );
+    }
+
+    private boolean isUniqueConstraintViolation(SQLException exception) {
+        SQLException current = exception;
+        while (current != null) {
+            String state = current.getSQLState();
+            if ("23000".equals(state) || "23505".equals(state)
+                    || current.getErrorCode() == 19 || current.getErrorCode() == 1062) {
+                return true;
+            }
+            current = current.getNextException();
+        }
+        return false;
+    }
+
+    private PlayerData mapPlayerRow(ResultSet rs) throws SQLException {
+        PlayerData data = new PlayerData(
+                UUID.fromString(rs.getString("uuid")),
+                rs.getString("username")
+        );
+        data.setMoney(rs.getDouble("money"));
+        data.setShards(rs.getLong("shards"));
+        data.setKills(rs.getInt("kills"));
+        data.setDeaths(rs.getInt("deaths"));
+        data.setPlaytimeSeconds(rs.getLong("playtime_seconds"));
+        data.setBlocksPlaced(rs.getLong("blocks_placed"));
+        data.setBlocksBroken(rs.getLong("blocks_broken"));
+        data.setMobsKilled(rs.getLong("mobs_killed"));
+        data.setKillStreak(rs.getInt("kill_streak"));
+        data.setHighestKillStreak(rs.getInt("highest_kill_streak"));
+        data.setMoneySpent(rs.getDouble("money_spent"));
+        data.setMoneyMade(rs.getDouble("money_made"));
+        data.setTpauto(rs.getInt("tpauto") == 1);
+        data.setPhantomEnabled(rs.getInt("phantom_enabled") == 1);
+        data.setPaymentsChoice(com.bx.ultimateDonutSmp.models.ThreeChoice.fromInt(rs.getInt("payments_enabled")));
+        data.setScoreboardVisible(rs.getInt("scoreboard_visible") != 0);
+        data.setPayAlertsEnabled(rs.getInt("pay_alerts_enabled") != 0);
+        data.setHotbarMessagesEnabled(rs.getInt("hotbar_messages_enabled") != 0);
+        data.setWorthDisplayEnabled(rs.getInt("worth_display_enabled") != 0);
+        data.setMoneyNametagsEnabled(rs.getInt("money_nametags_enabled") != 0);
+        data.setClearEntitiesMessagesEnabled(rs.getInt("clear_entities_messages_enabled") != 0);
+        data.setBountyAlertsEnabled(rs.getInt("bounty_alerts_enabled") != 0);
+        data.setTpaConfirmMenuEnabled(rs.getInt("tpa_confirm_menu_enabled") != 0);
+        data.setVoiceChatConsent(com.bx.ultimateDonutSmp.models.VoiceChatConsent.fromInt(rs.getInt("voice_chat_consent")));
+        data.setChainmailOnRespawnEnabled(rs.getInt("chainmail_on_respawn_enabled") != 0);
+        data.setLunarTeammatesEnabled(rs.getInt("lunar_teammates_enabled") != 0);
+        data.setTpaRequestsChoice(com.bx.ultimateDonutSmp.models.ThreeChoice.fromInt(rs.getInt("tpa_requests_enabled")));
+        data.setAutoTpaHereEnabled(rs.getInt("auto_tpahere_enabled") != 0);
+        data.setTpaHereRequestsChoice(com.bx.ultimateDonutSmp.models.ThreeChoice.fromInt(rs.getInt("tpahere_requests_enabled")));
+        data.setTeamInvitesEnabled(rs.getInt("team_invites_enabled") != 0);
+        data.setMobSpawnEnabled(rs.getInt("mob_spawn_enabled") != 0);
+        data.setPayConfirmMenuEnabled(rs.getInt("pay_confirm_menu_enabled") != 0);
+        data.setTotemParticlesEnabled(rs.getInt("totem_particles_enabled") != 0);
+        data.setFastCrystalsEnabled(rs.getInt("fast_crystals_enabled") != 0);
+        data.setAmethystBreakMessagesEnabled(rs.getInt("amethyst_break_messages_enabled") != 0);
+        data.setPrivateMessagesChoice(com.bx.ultimateDonutSmp.models.ThreeChoice.fromInt(rs.getInt("private_messages_enabled")));
+        data.setKeyAllNotificationsEnabled(rs.getInt("keyall_notifications_enabled") != 0);
+        data.setDuelRequestsEnabled(rs.getInt("duel_requests_enabled") != 0);
+        data.setPublicChatEnabled(rs.getInt("public_chat_enabled") != 0);
+        data.setServerBroadcastsEnabled(rs.getInt("server_broadcasts_enabled") != 0);
+        data.setAuctionNotificationsEnabled(rs.getInt("auction_notifications_enabled") != 0);
+        data.setExplosionParticlesEnabled(rs.getInt("explosion_particles_enabled") != 0);
+        data.setHideAllPlayersEnabled(rs.getInt("hide_all_players_enabled") != 0);
+        data.setNotificationSoundsEnabled(rs.getInt("notification_sounds_enabled") != 0);
+        data.setRtpCoordinatesEnabled(rs.getInt("rtp_coordinates_enabled") != 0);
+        data.setOrderNotificationsEnabled(rs.getInt("order_notifications_enabled") != 0);
+        data.setTeamChatVisible(rs.getInt("team_chat_visible") != 0);
+        data.setDuelMusicEnabled(rs.getInt("duel_music_enabled") != 0);
+        data.setQuietSpawnEnabled(rs.getInt("quiet_spawn_enabled") != 0);
+        data.setNightVisionEnabled(rs.getInt("night_vision_enabled") != 0);
+        data.setKeyAllRemainingSeconds(rs.getLong("keyall_remaining_seconds"));
+        data.setShardBoosterExpiryMillis(rs.getLong("shard_booster_expiry"));
+        data.setMobSpawnDisabledUntil(rs.getLong("mob_spawn_disabled_until"));
+        data.setPhantomDisabledUntil(rs.getLong("phantom_disabled_until"));
+        data.setDestroyPearlOnDeath(rs.getInt("destroy_pearl_on_death") != 0);
+        data.setRandomizedCoords(rs.getInt("randomized_coords") != 0);
+        data.setDeathMessagesChoice(com.bx.ultimateDonutSmp.models.TwoChoice.fromInt(rs.getInt("death_messages_choice")));
+        // Both columns used to hold a ThreeChoice ordinal. Rows written before the two options
+        // became on/off and friends/off still read correctly: 0 was OFF, and 1 (anyone) and
+        // 2 (friends) both mean the option was on.
+        data.setAdvancementMessagesEnabled(rs.getInt("advancement_messages_choice") != 0);
+        data.setJoinLeaveMessagesChoice(com.bx.ultimateDonutSmp.models.TwoChoice.fromInt(rs.getInt("join_leave_messages_choice")));
+        data.setTeleportAlertsEnabled(rs.getInt("teleport_alerts_enabled") != 0);
+        data.setFollowAlertsEnabled(rs.getInt("follow_alerts_enabled") != 0);
+        data.setExplosionSoundsEnabled(rs.getInt("explosion_sounds_enabled") != 0);
+        data.setDisplayDonutPlusEnabled(rs.getInt("display_donutplus_enabled") != 0);
+        data.setShowMoneyLine(rs.getInt("show_money_line") != 0);
+        data.setShowShardsLine(rs.getInt("show_shards_line") != 0);
+        data.setShowKillsLine(rs.getInt("show_kills_line") != 0);
+        data.setShowDeathsLine(rs.getInt("show_deaths_line") != 0);
+        data.setShowPlaytimeLine(rs.getInt("show_playtime_line") != 0);
+        data.setCombatTimerEnabled(rs.getInt("combat_timer_enabled") != 0);
+        data.setDirty(false);
+        return data;
+    }
+
+    public UUID findPlayerUuidByUsername(String username) {
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+
+        String lowerKey = username.trim().toLowerCase(Locale.ROOT);
+        UUID cached = uuidByUsernameCache.get(lowerKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        String sql = "SELECT uuid FROM players WHERE LOWER(username) = LOWER(?) LIMIT 1";
+
+        if (hikariDataSource != null && !hikariDataSource.isClosed()) {
+            try (Connection conn = hikariDataSource.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, username.trim());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        UUID uuid = UUID.fromString(rs.getString("uuid"));
+                        uuidByUsernameCache.put(lowerKey, uuid);
+                        usernameCache.put(uuid, username.trim());
+                        return uuid;
+                    }
+                }
+            } catch (SQLException e) {
+                if (plugin != null) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to resolve player uuid for " + username, e);
+                }
+            }
+            return null;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, username.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    UUID uuid = UUID.fromString(rs.getString("uuid"));
+                    uuidByUsernameCache.put(lowerKey, uuid);
+                    usernameCache.put(uuid, username.trim());
+                    return uuid;
+                }
+            }
+        } catch (SQLException e) {
+            if (plugin != null) {
+                plugin.getLogger().log(Level.WARNING, "Failed to resolve player uuid for " + username, e);
+            }
+        }
+        return null;
+    }
+
+    public List<String> loadKnownPlayerNames() {
+        List<String> names = new ArrayList<>();
+        String sql = "SELECT username FROM players "
+                + "WHERE username IS NOT NULL AND TRIM(username) <> '' "
+                + "ORDER BY LOWER(username) ASC";
+
+        if (hikariDataSource != null && !hikariDataSource.isClosed()) {
+            try (Connection conn = hikariDataSource.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql);
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String username = rs.getString("username");
+                    if (username != null && !username.isBlank()) {
+                        names.add(username);
+                    }
+                }
+            } catch (SQLException e) {
+                if (plugin != null) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to load known player names", e);
+                }
+            }
+            return names;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                String username = rs.getString("username");
+                if (username != null && !username.isBlank()) {
+                    names.add(username);
+                }
+            }
+        } catch (SQLException e) {
+            if (plugin != null) {
+                plugin.getLogger().log(Level.WARNING, "Failed to load known player names", e);
+            }
+        }
+        return names;
+    }
+
+    public UUID findPunishmentTargetUuidByName(String username) {
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+
+        String sql = "SELECT target_uuid FROM punishments " +
+                "WHERE LOWER(target_name_snapshot) = LOWER(?) " +
+                "ORDER BY issued_at DESC, id DESC LIMIT 1";
+
+        if (hikariDataSource != null && !hikariDataSource.isClosed()) {
+            try (Connection conn = hikariDataSource.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, username.trim());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return UUID.fromString(rs.getString("target_uuid"));
+                    }
+                }
+            } catch (SQLException e) {
+                if (plugin != null) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to resolve punishment target uuid for " + username, e);
+                }
+            }
+            return null;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, username.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return UUID.fromString(rs.getString("target_uuid"));
+                }
+            }
+        } catch (SQLException e) {
+            if (plugin != null) {
+                plugin.getLogger().log(Level.WARNING, "Failed to resolve punishment target uuid for " + username, e);
+            }
+        }
+        return null;
+    }
+
+    public String getLastKnownUsername(UUID uuid) {
+        if (uuid == null) {
+            return null;
+        }
+
+        String cached = usernameCache.get(uuid);
+        if (cached != null && !cached.isBlank()) {
+            return cached;
+        }
+
+        String sql = "SELECT username FROM players WHERE uuid = ?";
+
+        if (hikariDataSource != null && !hikariDataSource.isClosed()) {
+            try (Connection conn = hikariDataSource.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        String name = rs.getString("username");
+                        if (name != null && !name.isBlank()) {
+                            usernameCache.put(uuid, name);
+                            uuidByUsernameCache.put(name.toLowerCase(Locale.ROOT), uuid);
+                            return name;
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                if (plugin != null) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to get username for " + uuid, e);
+                }
+            }
+            return null;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String name = rs.getString("username");
+                    if (name != null && !name.isBlank()) {
+                        usernameCache.put(uuid, name);
+                        uuidByUsernameCache.put(name.toLowerCase(Locale.ROOT), uuid);
+                        return name;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            if (plugin != null) {
+                plugin.getLogger().log(Level.WARNING, "Failed to get username for " + uuid, e);
+            }
+        }
+        return null;
+    }
+
+    public List<IgnoreEntry> loadIgnoredPlayers(UUID ownerUuid) {
+        List<IgnoreEntry> ignoredPlayers = new ArrayList<>();
+        if (ownerUuid == null) {
+            return ignoredPlayers;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT owner_uuid, ignored_uuid, ignored_name_snapshot, created_at " +
+                "FROM player_ignores WHERE owner_uuid = ? " +
+                "ORDER BY LOWER(COALESCE(ignored_name_snapshot, ignored_uuid)) ASC")) {
+            ps.setString(1, ownerUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ignoredPlayers.add(new IgnoreEntry(
+                            UUID.fromString(rs.getString("owner_uuid")),
+                            UUID.fromString(rs.getString("ignored_uuid")),
+                            rs.getString("ignored_name_snapshot"),
+                            rs.getLong("created_at")
+                    ));
+                }
+            }
+        } catch (SQLException | IllegalArgumentException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load ignored players for " + ownerUuid, e);
+        }
+        return ignoredPlayers;
+    }
+
+    public boolean addIgnoredPlayer(UUID ownerUuid, UUID ignoredUuid, String ignoredNameSnapshot, long createdAt) {
+        if (ownerUuid == null || ignoredUuid == null) {
+            return false;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO player_ignores " +
+                "(owner_uuid, ignored_uuid, ignored_name_snapshot, created_at) VALUES (?,?,?,?)")) {
+            ps.setString(1, ownerUuid.toString());
+            ps.setString(2, ignoredUuid.toString());
+            ps.setString(3, ignoredNameSnapshot);
+            ps.setLong(4, createdAt);
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to add ignored player " + ignoredUuid + " for " + ownerUuid, e);
+        }
+        return false;
+    }
+
+    public boolean removeIgnoredPlayer(UUID ownerUuid, UUID ignoredUuid) {
+        if (ownerUuid == null || ignoredUuid == null) {
+            return false;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM player_ignores WHERE owner_uuid = ? AND ignored_uuid = ?")) {
+            ps.setString(1, ownerUuid.toString());
+            ps.setString(2, ignoredUuid.toString());
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to remove ignored player " + ignoredUuid + " for " + ownerUuid, e);
+        }
+        return false;
+    }
+
+    public List<com.bx.ultimateDonutSmp.models.FollowEntry> loadFollowsByFollower(UUID followerUuid) {
+        List<com.bx.ultimateDonutSmp.models.FollowEntry> follows = new ArrayList<>();
+        if (followerUuid == null) return follows;
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM player_friends WHERE follower_uuid = ?")) {
+            ps.setString(1, followerUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    follows.add(mapFollowRow(rs));
+                }
+            }
+        } catch (SQLException | IllegalArgumentException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load follows for " + followerUuid, e);
+        }
+        return follows;
+    }
+
+    public List<com.bx.ultimateDonutSmp.models.FollowEntry> loadFollowsByFollowed(UUID followedUuid) {
+        List<com.bx.ultimateDonutSmp.models.FollowEntry> follows = new ArrayList<>();
+        if (followedUuid == null) return follows;
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM player_friends WHERE followed_uuid = ?")) {
+            ps.setString(1, followedUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    follows.add(mapFollowRow(rs));
+                }
+            }
+        } catch (SQLException | IllegalArgumentException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load followers for " + followedUuid, e);
+        }
+        return follows;
+    }
+
+    public boolean addFollow(UUID follower, UUID followed, String followedName, long createdAt) {
+        if (follower == null || followed == null) return false;
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO player_friends (follower_uuid, followed_uuid, followed_name_snapshot, created_at) " +
+                "VALUES (?, ?, ?, ?)")) {
+            ps.setString(1, follower.toString());
+            ps.setString(2, followed.toString());
+            ps.setString(3, followedName);
+            ps.setLong(4, createdAt);
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to add follow relationship", e);
+        }
+        return false;
+    }
+
+    public boolean removeFollow(UUID follower, UUID followed) {
+        if (follower == null || followed == null) return false;
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM player_friends WHERE follower_uuid = ? AND followed_uuid = ?")) {
+            ps.setString(1, follower.toString());
+            ps.setString(2, followed.toString());
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to remove follow relationship", e);
+        }
+        return false;
+    }
+
+    public boolean updateFollowSettings(UUID follower, UUID followed, boolean transactions, boolean messages, boolean payments, boolean activity, boolean tpaAutoAccept, boolean teleportRequests) {
+        if (follower == null || followed == null) return false;
+        try (PreparedStatement ps = connection.prepareStatement(
+                "UPDATE player_friends SET transactions_enabled = ?, messages_enabled = ?, payments_enabled = ?, " +
+                "activity_enabled = ?, tpa_auto_accept_enabled = ?, teleport_requests_enabled = ? " +
+                "WHERE follower_uuid = ? AND followed_uuid = ?")) {
+            ps.setInt(1, transactions ? 1 : 0);
+            ps.setInt(2, messages ? 1 : 0);
+            ps.setInt(3, payments ? 1 : 0);
+            ps.setInt(4, activity ? 1 : 0);
+            ps.setInt(5, tpaAutoAccept ? 1 : 0);
+            ps.setInt(6, teleportRequests ? 1 : 0);
+            ps.setString(7, follower.toString());
+            ps.setString(8, followed.toString());
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to update follow settings", e);
+        }
+        return false;
+    }
+
+    private com.bx.ultimateDonutSmp.models.FollowEntry mapFollowRow(ResultSet rs) throws SQLException {
+        return new com.bx.ultimateDonutSmp.models.FollowEntry(
+                UUID.fromString(rs.getString("follower_uuid")),
+                UUID.fromString(rs.getString("followed_uuid")),
+                rs.getString("followed_name_snapshot"),
+                rs.getInt("transactions_enabled") != 0,
+                rs.getInt("messages_enabled") != 0,
+                rs.getInt("payments_enabled") != 0,
+                rs.getInt("activity_enabled") != 0,
+                rs.getInt("tpa_auto_accept_enabled") != 0,
+                rs.getInt("teleport_requests_enabled") != 0,
+                rs.getLong("created_at")
+        );
+    }
+
+    public String getLatestPunishmentTargetName(UUID uuid) {
+        if (uuid == null) {
+            return null;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT target_name_snapshot FROM punishments " +
+                "WHERE target_uuid = ? AND target_name_snapshot IS NOT NULL AND target_name_snapshot != '' " +
+                "ORDER BY issued_at DESC, id DESC LIMIT 1")) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("target_name_snapshot");
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to resolve punishment target name for " + uuid, e);
+        }
+        return null;
+    }
+
+    public void savePlayerIpAddress(UUID playerUuid, String ipAddress, long seenAt) {
+        if (playerUuid == null || ipAddress == null || ipAddress.isBlank()) {
+            return;
+        }
+
+        String normalizedIp = ipAddress.trim();
+        try (PreparedStatement update = connection.prepareStatement(
+                "UPDATE player_ip_history SET last_seen = ? WHERE player_uuid = ? AND ip_address = ?")) {
+            update.setLong(1, seenAt);
+            update.setString(2, playerUuid.toString());
+            update.setString(3, normalizedIp);
+            if (update.executeUpdate() > 0) {
+                return;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to update IP history for " + playerUuid, e);
+            return;
+        }
+
+        try (PreparedStatement insert = connection.prepareStatement(
+                "INSERT INTO player_ip_history (player_uuid, ip_address, first_seen, last_seen) VALUES (?,?,?,?)")) {
+            insert.setString(1, playerUuid.toString());
+            insert.setString(2, normalizedIp);
+            insert.setLong(3, seenAt);
+            insert.setLong(4, seenAt);
+            insert.executeUpdate();
+        } catch (SQLException e) {
+            try (PreparedStatement retryUpdate = connection.prepareStatement(
+                    "UPDATE player_ip_history SET last_seen = ? WHERE player_uuid = ? AND ip_address = ?")) {
+                retryUpdate.setLong(1, seenAt);
+                retryUpdate.setString(2, playerUuid.toString());
+                retryUpdate.setString(3, normalizedIp);
+                retryUpdate.executeUpdate();
+            } catch (SQLException retryException) {
+                plugin.getLogger().log(Level.WARNING, "Failed to save IP history for " + playerUuid, retryException);
+            }
+        }
+    }
+
+    public List<String> loadKnownIpAddresses(UUID playerUuid) {
+        if (playerUuid == null) {
+            return List.of();
+        }
+
+        List<String> ipAddresses = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT ip_address FROM player_ip_history WHERE player_uuid = ? ORDER BY last_seen DESC, ip_address ASC")) {
+            ps.setString(1, playerUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String ipAddress = rs.getString("ip_address");
+                    if (ipAddress != null && !ipAddress.isBlank()) {
+                        ipAddresses.add(ipAddress);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load IP history for " + playerUuid, e);
+        }
+        return ipAddresses;
+    }
+
+    public List<AltAccountMatch> loadAltAccounts(UUID playerUuid) {
+        if (playerUuid == null) {
+            return List.of();
+        }
+
+        Map<String, AltAccountAccumulator> matchesByUuid = new LinkedHashMap<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT hist.player_uuid, p.username, hist.ip_address, hist.last_seen " +
+                        "FROM player_ip_history target_hist " +
+                        "JOIN player_ip_history hist ON hist.ip_address = target_hist.ip_address " +
+                        "LEFT JOIN players p ON p.uuid = hist.player_uuid " +
+                        "WHERE target_hist.player_uuid = ? AND hist.player_uuid <> ? " +
+                        "ORDER BY hist.last_seen DESC, LOWER(COALESCE(p.username, hist.player_uuid)) ASC, hist.ip_address ASC")) {
+            ps.setString(1, playerUuid.toString());
+            ps.setString(2, playerUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String altUuidRaw = rs.getString("player_uuid");
+                    if (altUuidRaw == null || altUuidRaw.isBlank()) {
+                        continue;
+                    }
+
+                    String username = rs.getString("username");
+                    if (username == null || username.isBlank()) {
+                        username = altUuidRaw.substring(0, Math.min(8, altUuidRaw.length()));
+                    }
+                    final String resolvedUsername = username;
+
+                    AltAccountAccumulator accumulator = matchesByUuid.computeIfAbsent(
+                            altUuidRaw,
+                            ignored -> new AltAccountAccumulator(UUID.fromString(altUuidRaw), resolvedUsername)
+                    );
+                    String sharedIp = rs.getString("ip_address");
+                    if (sharedIp != null && !sharedIp.isBlank()) {
+                        accumulator.sharedIps.add(sharedIp);
+                    }
+                    accumulator.lastSeenAt = Math.max(accumulator.lastSeenAt, rs.getLong("last_seen"));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load alt accounts for " + playerUuid, e);
+        }
+
+        List<AltAccountMatch> matches = new ArrayList<>();
+        for (AltAccountAccumulator accumulator : matchesByUuid.values()) {
+            matches.add(new AltAccountMatch(
+                    accumulator.uuid,
+                    accumulator.username,
+                    List.copyOf(accumulator.sharedIps),
+                    accumulator.lastSeenAt
+            ));
+        }
+        return matches;
+    }
+
+    private static final class AltAccountAccumulator {
+        private final UUID uuid;
+        private final String username;
+        private final LinkedHashSet<String> sharedIps = new LinkedHashSet<>();
+        private long lastSeenAt;
+
+        private AltAccountAccumulator(UUID uuid, String username) {
+            this.uuid = uuid;
+            this.username = username;
+        }
+    }
+
+    public synchronized void savePlayer(PlayerData data) {
+        if (data == null || data.getUuid() == null) {
+            return;
+        }
+        if (data.getUsername() != null && !data.getUsername().isBlank()) {
+            usernameCache.put(data.getUuid(), data.getUsername());
+            uuidByUsernameCache.put(data.getUsername().toLowerCase(Locale.ROOT), data.getUuid());
+        }
+
+        String sql = """
+                REPLACE INTO players
+                (uuid, username, money, shards, kills, deaths, playtime_seconds, blocks_placed, blocks_broken, mobs_killed,
+                 kill_streak, highest_kill_streak, money_spent, money_made, tpauto, phantom_enabled, payments_enabled,
+                 scoreboard_visible, pay_alerts_enabled, hotbar_messages_enabled, worth_display_enabled,
+                 money_nametags_enabled,
+                 clear_entities_messages_enabled, bounty_alerts_enabled, tpa_confirm_menu_enabled,
+                 chainmail_on_respawn_enabled, lunar_teammates_enabled, tpa_requests_enabled, auto_tpahere_enabled,
+                 tpahere_requests_enabled, team_invites_enabled, mob_spawn_enabled, pay_confirm_menu_enabled,
+                 totem_particles_enabled, fast_crystals_enabled, amethyst_break_messages_enabled,
+                 private_messages_enabled, keyall_notifications_enabled, duel_requests_enabled,
+                 public_chat_enabled, server_broadcasts_enabled, auction_notifications_enabled,
+                 explosion_particles_enabled, hide_all_players_enabled, notification_sounds_enabled,
+                 rtp_coordinates_enabled, order_notifications_enabled, team_chat_visible,
+                    duel_music_enabled, quiet_spawn_enabled, night_vision_enabled, keyall_remaining_seconds,
+                    shard_booster_expiry, mob_spawn_disabled_until, phantom_disabled_until, destroy_pearl_on_death, randomized_coords, death_messages_choice,
+                    advancement_messages_choice, join_leave_messages_choice, teleport_alerts_enabled,
+                    follow_alerts_enabled, explosion_sounds_enabled, display_donutplus_enabled,
+                    voice_chat_consent, show_money_line, show_shards_line, show_kills_line,
+                    show_deaths_line, show_playtime_line, combat_timer_enabled)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """;
+
+        if (hikariDataSource != null && !hikariDataSource.isClosed()) {
+            try (Connection conn = hikariDataSource.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                bindPlayerSaveParameters(ps, data);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                if (plugin != null) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to save player " + data.getUuid(), e);
+                }
+            }
+            return;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            bindPlayerSaveParameters(ps, data);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            if (plugin != null) {
+                plugin.getLogger().log(Level.WARNING, "Failed to save player " + data.getUuid(), e);
+            }
+        }
+    }
+
+    private void bindPlayerSaveParameters(PreparedStatement ps, PlayerData data) throws SQLException {
+            ps.setString(1, data.getUuid().toString());
+            ps.setString(2, data.getUsername());
+            ps.setDouble(3, data.getMoney());
+            ps.setLong(4, data.getShards());
+            ps.setInt(5, data.getKills());
+            ps.setInt(6, data.getDeaths());
+            ps.setLong(7, data.getTotalPlaytimeSeconds());
+            ps.setLong(8, data.getBlocksPlaced());
+            ps.setLong(9, data.getBlocksBroken());
+            ps.setLong(10, data.getMobsKilled());
+            ps.setInt(11, data.getKillStreak());
+            ps.setInt(12, data.getHighestKillStreak());
+            ps.setDouble(13, data.getMoneySpent());
+            ps.setDouble(14, data.getMoneyMade());
+            ps.setInt(15, data.isTpauto() ? 1 : 0);
+            ps.setInt(16, data.isPhantomEnabled() ? 1 : 0);
+            ps.setInt(17, data.getPaymentsChoice().ordinal());
+            ps.setInt(18, data.isScoreboardVisible() ? 1 : 0);
+            ps.setInt(19, data.isPayAlertsEnabled() ? 1 : 0);
+            ps.setInt(20, data.isHotbarMessagesEnabled() ? 1 : 0);
+            ps.setInt(21, data.isWorthDisplayEnabled() ? 1 : 0);
+            ps.setInt(22, data.isMoneyNametagsEnabled() ? 1 : 0);
+            ps.setInt(23, data.isClearEntitiesMessagesEnabled() ? 1 : 0);
+            ps.setInt(24, data.isBountyAlertsEnabled() ? 1 : 0);
+            ps.setInt(25, data.isTpaConfirmMenuEnabled() ? 1 : 0);
+            ps.setInt(26, data.isChainmailOnRespawnEnabled() ? 1 : 0);
+            ps.setInt(27, data.isLunarTeammatesEnabled() ? 1 : 0);
+            ps.setInt(28, data.getTpaRequestsChoice().ordinal());
+            ps.setInt(29, data.isAutoTpaHereEnabled() ? 1 : 0);
+            ps.setInt(30, data.getTpaHereRequestsChoice().ordinal());
+            ps.setInt(31, data.isTeamInvitesEnabled() ? 1 : 0);
+            ps.setInt(32, data.isMobSpawnEnabled() ? 1 : 0);
+            ps.setInt(33, data.isPayConfirmMenuEnabled() ? 1 : 0);
+            ps.setInt(34, data.isTotemParticlesEnabled() ? 1 : 0);
+            ps.setInt(35, data.isFastCrystalsEnabled() ? 1 : 0);
+            ps.setInt(36, data.isAmethystBreakMessagesEnabled() ? 1 : 0);
+            ps.setInt(37, data.getPrivateMessagesChoice().ordinal());
+            ps.setInt(38, data.isKeyAllNotificationsEnabled() ? 1 : 0);
+            ps.setInt(39, data.isDuelRequestsEnabled() ? 1 : 0);
+            ps.setInt(40, data.isPublicChatEnabled() ? 1 : 0);
+            ps.setInt(41, data.isServerBroadcastsEnabled() ? 1 : 0);
+            ps.setInt(42, data.isAuctionNotificationsEnabled() ? 1 : 0);
+            ps.setInt(43, data.isExplosionParticlesEnabled() ? 1 : 0);
+            ps.setInt(44, data.isHideAllPlayersEnabled() ? 1 : 0);
+            ps.setInt(45, data.isNotificationSoundsEnabled() ? 1 : 0);
+            ps.setInt(46, data.isRtpCoordinatesEnabled() ? 1 : 0);
+            ps.setInt(47, data.isOrderNotificationsEnabled() ? 1 : 0);
+            ps.setInt(48, data.isTeamChatVisible() ? 1 : 0);
+            ps.setInt(49, data.isDuelMusicEnabled() ? 1 : 0);
+            ps.setInt(50, data.isQuietSpawnEnabled() ? 1 : 0);
+            ps.setInt(51, data.isNightVisionEnabled() ? 1 : 0);
+            ps.setLong(52, data.getKeyAllRemainingSeconds());
+            ps.setLong(53, data.getShardBoosterExpiryMillis());
+            ps.setLong(54, data.getMobSpawnDisabledUntil());
+            ps.setLong(55, data.getPhantomDisabledUntil());
+            ps.setInt(56, data.isDestroyPearlOnDeath() ? 1 : 0);
+            ps.setInt(57, data.isRandomizedCoords() ? 1 : 0);
+            ps.setInt(58, data.getDeathMessagesChoice().ordinal());
+            ps.setInt(59, data.isAdvancementMessagesEnabled() ? 1 : 0);
+            ps.setInt(60, data.getJoinLeaveMessagesChoice().ordinal());
+            ps.setInt(61, data.isTeleportAlertsEnabled() ? 1 : 0);
+            ps.setInt(62, data.isFollowAlertsEnabled() ? 1 : 0);
+            ps.setInt(63, data.isExplosionSoundsEnabled() ? 1 : 0);
+            ps.setInt(64, data.isDisplayDonutPlusEnabled() ? 1 : 0);
+            ps.setInt(65, data.getVoiceChatConsent().ordinal());
+            ps.setInt(66, data.isShowMoneyLine() ? 1 : 0);
+            ps.setInt(67, data.isShowShardsLine() ? 1 : 0);
+            ps.setInt(68, data.isShowKillsLine() ? 1 : 0);
+            ps.setInt(69, data.isShowDeathsLine() ? 1 : 0);
+            ps.setInt(70, data.isShowPlaytimeLine() ? 1 : 0);
+            ps.setInt(71, data.isCombatTimerEnabled() ? 1 : 0);
+            data.setDirty(false);
+    }
+
+    public int countPlayersWithTrackedStats() {
+        String sql = """
+                SELECT COUNT(*) FROM players
+                WHERE kills != 0
+                   OR deaths != 0
+                   OR playtime_seconds != 0
+                   OR blocks_placed != 0
+                   OR blocks_broken != 0
+                   OR mobs_killed != 0
+                   OR kill_streak != 0
+                   OR highest_kill_streak != 0
+                   OR money_spent != 0
+                   OR money_made != 0
+                """;
+        return countQuery(sql);
+    }
+
+    public int resetPlayerStats() {
+        String sql = """
+                UPDATE players SET
+                    kills = 0,
+                    deaths = 0,
+                    playtime_seconds = 0,
+                    blocks_placed = 0,
+                    blocks_broken = 0,
+                    mobs_killed = 0,
+                    kill_streak = 0,
+                    highest_kill_streak = 0,
+                    money_spent = 0,
+                    money_made = 0
+                """;
+        return executeUpdate(sql);
+    }
+
+    public int resetAllPlayerMoney(double defaultMoney) {
+        String sql = "UPDATE players SET money = " + defaultMoney;
+        return executeUpdate(sql);
+    }
+
+    public int resetAllPlayerShards() {
+        String sql = "UPDATE players SET shards = 0";
+        return executeUpdate(sql);
+    }
+
+    public List<PlayerData> getTopByMoney(int limit) {
+        return getTop("money", limit);
+    }
+
+    public List<PlayerData> getTopByKills(int limit) {
+        return getTop("kills", limit);
+    }
+
+    public List<PlayerData> getTopByShards(int limit) {
+        return getTop("shards", limit);
+    }
+
+    public List<PlayerData> getTopByDeaths(int limit) {
+        return getTop("deaths", limit);
+    }
+
+    public List<PlayerData> getTopByPlaytime(int limit) {
+        return getTop("playtime_seconds", limit);
+    }
+
+    private List<PlayerData> getTop(String column, int limit) {
+        List<PlayerData> list = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM players ORDER BY " + column + " DESC LIMIT ?")) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapPlayerRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get top list", e);
+        }
+        return list;
+    }
+
+    public int loadEnderChestRows(UUID uuid, int fallbackRows) {
+        if (connection == null) {
+            return fallbackRows;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT `rows` FROM ender_chest_profiles WHERE player_uuid = ?")) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Math.max(1, rs.getInt("rows"));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load Ender Chest rows for " + uuid, e);
+            return -1;
+        }
+        return Math.max(1, fallbackRows);
+    }
+
+    public ItemStack[] loadEnderChestContents(UUID uuid, int size) {
+        ItemStack[] contents = new ItemStack[Math.max(9, size)];
+        if (connection == null) {
+            return contents;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT slot, item_data FROM ender_chest_items WHERE player_uuid = ? ORDER BY slot ASC")) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int slot = rs.getInt("slot");
+                    if (slot < 0 || slot >= contents.length) {
+                        continue;
+                    }
+
+                    ItemStack item = deserializeItemStack(rs.getString("item_data"));
+                    if (item == null || item.getType().isAir()) {
+                        continue;
+                    }
+
+                    contents[slot] = item;
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load Ender Chest contents for " + uuid, e);
+            return null;
+        }
+
+        return contents;
+    }
+
+    public Map<String, Integer> loadCrateKeyBalances(UUID uuid) {
+        Map<String, Integer> balances = new LinkedHashMap<>();
+        if (connection == null || uuid == null) {
+            return balances;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT crate_id, amount FROM player_crate_keys WHERE player_uuid = ? ORDER BY crate_id ASC")) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    balances.put(rs.getString("crate_id"), Math.max(0, rs.getInt("amount")));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load crate key balances for " + uuid, e);
+        }
+        return balances;
+    }
+
+    public int getCrateKeyAmount(UUID uuid, String crateId) {
+        if (connection == null || uuid == null || crateId == null || crateId.isBlank()) {
+            return 0;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT amount FROM player_crate_keys WHERE player_uuid = ? AND crate_id = ?")) {
+            ps.setString(1, uuid.toString());
+            ps.setString(2, crateId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Math.max(0, rs.getInt("amount"));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load crate key amount for " + uuid + "/" + crateId, e);
+        }
+        return 0;
+    }
+
+    public boolean setCrateKeyAmount(UUID uuid, String crateId, int amount) {
+        if (connection == null || uuid == null || crateId == null || crateId.isBlank()) {
+            return false;
+        }
+
+        int normalizedAmount = Math.max(0, amount);
+        if (normalizedAmount == 0) {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM player_crate_keys WHERE player_uuid = ? AND crate_id = ?")) {
+                ps.setString(1, uuid.toString());
+                ps.setString(2, crateId);
+                ps.executeUpdate();
+                return true;
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "Failed to delete crate key balance for " + uuid + "/" + crateId, e);
+                return false;
+            }
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO player_crate_keys (player_uuid, crate_id, amount, updated_at) VALUES (?,?,?,?)")) {
+            ps.setString(1, uuid.toString());
+            ps.setString(2, crateId);
+            ps.setInt(3, normalizedAmount);
+            ps.setLong(4, System.currentTimeMillis());
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save crate key balance for " + uuid + "/" + crateId, e);
+            return false;
+        }
+    }
+
+    public int addCrateKeys(UUID uuid, String crateId, int amount) {
+        if (amount <= 0) {
+            return getCrateKeyAmount(uuid, crateId);
+        }
+
+        int current = getCrateKeyAmount(uuid, crateId);
+        int newAmount = current + amount;
+        if (setCrateKeyAmount(uuid, crateId, newAmount)) {
+            return newAmount;
+        }
+        return current;
+    }
+
+    public boolean removeCrateKeys(UUID uuid, String crateId, int amount) {
+        if (amount <= 0) {
+            return true;
+        }
+
+        int current = getCrateKeyAmount(uuid, crateId);
+        if (current < amount) {
+            return false;
+        }
+
+        return setCrateKeyAmount(uuid, crateId, current - amount);
+    }
+
+    public record CrateBlockData(String world, int x, int y, int z, String crateId) {
+    }
+
+    public List<CrateBlockData> loadCrateBlocks() {
+        List<CrateBlockData> blocks = new ArrayList<>();
+        if (connection == null) {
+            return blocks;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT world, x, y, z, crate_id FROM crate_blocks ORDER BY world ASC, y ASC, x ASC, z ASC")) {
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    blocks.add(new CrateBlockData(
+                            rs.getString("world"),
+                            rs.getInt("x"),
+                            rs.getInt("y"),
+                            rs.getInt("z"),
+                            rs.getString("crate_id")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load crate block bindings", e);
+        }
+        return blocks;
+    }
+
+    public boolean saveCrateBlock(String world, int x, int y, int z, String crateId) {
+        if (connection == null || world == null || world.isBlank() || crateId == null || crateId.isBlank()) {
+            return false;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO crate_blocks (world, x, y, z, crate_id, updated_at) VALUES (?,?,?,?,?,?)")) {
+            ps.setString(1, world);
+            ps.setInt(2, x);
+            ps.setInt(3, y);
+            ps.setInt(4, z);
+            ps.setString(5, crateId);
+            ps.setLong(6, System.currentTimeMillis());
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save crate block binding for "
+                    + world + " " + x + "," + y + "," + z, e);
+        }
+        return false;
+    }
+
+    public boolean deleteCrateBlock(String world, int x, int y, int z) {
+        if (connection == null || world == null || world.isBlank()) {
+            return false;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM crate_blocks WHERE world = ? AND x = ? AND y = ? AND z = ?")) {
+            ps.setString(1, world);
+            ps.setInt(2, x);
+            ps.setInt(3, y);
+            ps.setInt(4, z);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete crate block binding for "
+                    + world + " " + x + "," + y + "," + z, e);
+        }
+        return false;
+    }
+
+    public int deleteCrateKeyBalances(String crateId) {
+        if (connection == null || crateId == null || crateId.isBlank()) {
+            return 0;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM player_crate_keys WHERE crate_id = ?")) {
+            ps.setString(1, crateId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete crate key balances for " + crateId, e);
+        }
+        return 0;
+    }
+
+    public int deleteCrateBlocksByCrateId(String crateId) {
+        if (connection == null || crateId == null || crateId.isBlank()) {
+            return 0;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM crate_blocks WHERE crate_id = ?")) {
+            ps.setString(1, crateId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete crate block bindings for " + crateId, e);
+        }
+        return 0;
+    }
+
+    public boolean saveEnderChest(UUID uuid, int rows, ItemStack[] contents) {
+        if (connection == null) {
+            return false;
+        }
+
+        boolean originalAutoCommit;
+        try {
+            originalAutoCommit = connection.getAutoCommit();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to inspect auto-commit state before Ender Chest save", e);
+            return false;
+        }
+
+        boolean autoCommitDisabled = false;
+        try {
+            connection.setAutoCommit(false);
+            autoCommitDisabled = true;
+
+            try (PreparedStatement profileStatement = connection.prepareStatement(
+                    "REPLACE INTO ender_chest_profiles (player_uuid, `rows`, updated_at) VALUES (?,?,?)")) {
+                profileStatement.setString(1, uuid.toString());
+                profileStatement.setInt(2, Math.max(1, rows));
+                profileStatement.setLong(3, System.currentTimeMillis());
+                profileStatement.executeUpdate();
+            }
+
+            try (PreparedStatement deleteStatement = connection.prepareStatement(
+                    "DELETE FROM ender_chest_items WHERE player_uuid = ?")) {
+                deleteStatement.setString(1, uuid.toString());
+                deleteStatement.executeUpdate();
+            }
+
+            try (PreparedStatement insertStatement = connection.prepareStatement(
+                    "INSERT INTO ender_chest_items (player_uuid, slot, item_data) VALUES (?,?,?)")) {
+                for (int slot = 0; slot < contents.length; slot++) {
+                    ItemStack item = contents[slot];
+                    if (item == null || item.getType().isAir()) {
+                        continue;
+                    }
+
+                    insertStatement.setString(1, uuid.toString());
+                    insertStatement.setInt(2, slot);
+                    insertStatement.setString(3, serializeItemStack(item));
+                    insertStatement.addBatch();
+                }
+                insertStatement.executeBatch();
+            }
+
+            connection.commit();
+            return true;
+        } catch (Exception e) {
+            if (autoCommitDisabled) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackException) {
+                    if (plugin != null) {
+                        plugin.getLogger().log(Level.WARNING, "Failed to roll back Ender Chest save for " + uuid, rollbackException);
+                    }
+                }
+            }
+            if (plugin != null) {
+                plugin.getLogger().log(Level.WARNING, "Failed to save Ender Chest for " + uuid, e);
+            }
+            return false;
+        } finally {
+            if (autoCommitDisabled) {
+                try {
+                    connection.setAutoCommit(originalAutoCommit);
+                } catch (SQLException e) {
+                    if (plugin != null) {
+                        plugin.getLogger().log(Level.WARNING, "Failed to restore auto-commit after Ender Chest save", e);
+                    }
+                }
+            }
+        }
+    }
+
+    // â”€â”€ Homes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    public List<Home> loadHomes(UUID uuid) {
+        List<Home> homes = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM homes WHERE player_uuid = ? ORDER BY created_at ASC, home_name ASC")) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String worldName = rs.getString("world");
+                    if (worldName == null) continue;
+                    Location loc = new LazyLocation(worldName,
+                            rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"),
+                            rs.getFloat("yaw"), rs.getFloat("pitch"));
+                    long createdAt = rs.getLong("created_at");
+                    homes.add(new Home(uuid, rs.getString("home_name"), loc, createdAt));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load homes for " + uuid, e);
+            return null;
+        }
+        return homes;
+    }
+
+    public void saveHome(Home home) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO homes (player_uuid, home_name, world, x, y, z, yaw, pitch, created_at)" +
+                " VALUES (?,?,?,?,?,?,?,?,?)")) {
+            ps.setString(1, home.getOwnerUuid().toString());
+            ps.setString(2, home.getName());
+            Location l = home.getLocation();
+            String worldName = null;
+            if (l != null) {
+                if (l instanceof LazyLocation lazy) {
+                    worldName = lazy.getWorldName();
+                } else if (l.getWorld() != null) {
+                    worldName = l.getWorld().getName();
+                }
+            }
+            ps.setString(3, worldName);
+            ps.setDouble(4, l != null ? l.getX() : 0.0);
+            ps.setDouble(5, l != null ? l.getY() : 0.0);
+            ps.setDouble(6, l != null ? l.getZ() : 0.0);
+            ps.setFloat(7, l != null ? l.getYaw() : 0.0f);
+            ps.setFloat(8, l != null ? l.getPitch() : 0.0f);
+            ps.setLong(9, home.getCreatedAt());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save home", e);
+        }
+    }
+
+    public void deleteHome(UUID uuid, String name) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM homes WHERE player_uuid = ? AND home_name = ?")) {
+            ps.setString(1, uuid.toString());
+            ps.setString(2, name);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete home", e);
+        }
+    }
+
+    public int countHomes() {
+        return countRows("homes");
+    }
+
+    public int clearHomes() {
+        return executeUpdate("DELETE FROM homes");
+    }
+
+    // â”€â”€ Teams â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    public int countTeams() {
+        return countRows("teams");
+    }
+
+    public int clearTeams() {
+        executeUpdate("DELETE FROM team_members");
+        return executeUpdate("DELETE FROM teams");
+    }
+
+    public List<Team> loadAllTeams() {
+        List<Team> teams = new ArrayList<>();
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM teams")) {
+            while (rs.next()) {
+                Team team = new Team(rs.getString("name"),
+                        UUID.fromString(rs.getString("leader_uuid")));
+                team.setFriendlyFireEnabled(rs.getInt("friendly_fire_enabled") == 1);
+                String worldName = rs.getString("home_world");
+                if (worldName != null) {
+                    Location loc = new LazyLocation(worldName,
+                            rs.getDouble("home_x"), rs.getDouble("home_y"), rs.getDouble("home_z"),
+                            rs.getFloat("home_yaw"), rs.getFloat("home_pitch"));
+                    team.setHome(loc);
+                }
+                teams.add(team);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load teams", e);
+        }
+        // Load members
+        for (Team team : teams) {
+            loadTeamMembers(team);
+        }
+        return teams;
+    }
+
+    private void loadTeamMembers(Team team) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM team_members WHERE team_name = ?")) {
+            ps.setString(1, team.getName());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    UUID memberUuid = UUID.fromString(rs.getString("player_uuid"));
+                    team.addMember(memberUuid);
+                    Team.TeamMember member = team.getMember(memberUuid);
+                    if (member != null) {
+                        member.setCanEditHome(rs.getInt("can_edit_home") == 1);
+                        member.setCanManageTeammates(rs.getInt("can_manage_teammates") == 1);
+                        member.setCanTogglePvp(rs.getInt("can_toggle_pvp") == 1);
+                        member.setCanVisitHome(rs.getInt("can_visit_home") == 1);
+                        member.setCanUseTeamChat(rs.getInt("can_use_team_chat") == 1);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load team members for " + team.getName(), e);
+        }
+    }
+
+    public void saveTeam(Team team) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO teams (name, leader_uuid, home_world, home_x, home_y, home_z, home_yaw, home_pitch, friendly_fire_enabled)" +
+                " VALUES (?,?,?,?,?,?,?,?,?)")) {
+            ps.setString(1, team.getName());
+            ps.setString(2, team.getLeaderUuid().toString());
+            Location h = team.getHome();
+            String worldName = null;
+            if (h != null) {
+                if (h instanceof LazyLocation lazy) {
+                    worldName = lazy.getWorldName();
+                } else if (h.getWorld() != null) {
+                    worldName = h.getWorld().getName();
+                }
+            }
+            if (h != null && worldName != null) {
+                ps.setString(3, worldName);
+                ps.setDouble(4, h.getX());
+                ps.setDouble(5, h.getY());
+                ps.setDouble(6, h.getZ());
+                ps.setFloat(7, h.getYaw());
+                ps.setFloat(8, h.getPitch());
+            } else {
+                ps.setNull(3, Types.VARCHAR);
+                ps.setNull(4, Types.REAL); ps.setNull(5, Types.REAL);
+                ps.setNull(6, Types.REAL); ps.setNull(7, Types.REAL);
+                ps.setNull(8, Types.REAL);
+            }
+            ps.setInt(9, team.isFriendlyFireEnabled() ? 1 : 0);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save team " + team.getName(), e);
+        }
+        // Save members
+        saveTeamMembers(team);
+    }
+
+    private void saveTeamMembers(Team team) {
+        try (PreparedStatement del = connection.prepareStatement(
+                "DELETE FROM team_members WHERE team_name = ?")) {
+            del.setString(1, team.getName());
+            del.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to clear team members", e);
+        }
+        for (Team.TeamMember member : team.getMembers().values()) {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO team_members (player_uuid, team_name, can_edit_home, can_manage_teammates, can_toggle_pvp, can_visit_home, can_use_team_chat)" +
+                    " VALUES (?,?,?,?,?,?,?)")) {
+                ps.setString(1, member.getUuid().toString());
+                ps.setString(2, team.getName());
+                ps.setInt(3, member.canEditHome() ? 1 : 0);
+                ps.setInt(4, member.canManageTeammates() ? 1 : 0);
+                ps.setInt(5, member.canTogglePvp() ? 1 : 0);
+                ps.setInt(6, member.canVisitHome() ? 1 : 0);
+                ps.setInt(7, member.canUseTeamChat() ? 1 : 0);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "Failed to save team member", e);
+            }
+        }
+    }
+
+    public void deleteTeam(String name) {
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM teams WHERE name = ?")) {
+            ps.setString(1, name);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete team", e);
+        }
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM team_members WHERE team_name = ?")) {
+            ps.setString(1, name);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete team members", e);
+        }
+    }
+
+    // â”€â”€ Bounties â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    public List<Bounty> loadAllBounties() {
+        List<Bounty> bounties = new ArrayList<>();
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM bounties")) {
+            while (rs.next()) {
+                bounties.add(new Bounty(
+                        UUID.fromString(rs.getString("target_uuid")),
+                        rs.getDouble("amount"),
+                        UUID.fromString(rs.getString("placer_uuid"))
+                ));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load bounties", e);
+        }
+        return bounties;
+    }
+
+    public int countBounties() {
+        return countRows("bounties");
+    }
+
+    public int clearBounties() {
+        return executeUpdate("DELETE FROM bounties");
+    }
+
+    public void saveBounty(Bounty bounty) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO bounties (target_uuid, amount, placer_uuid) VALUES (?,?,?)")) {
+            ps.setString(1, bounty.getTargetUuid().toString());
+            ps.setDouble(2, bounty.getAmount());
+            ps.setString(3, bounty.getPlacerUuid().toString());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save bounty", e);
+        }
+    }
+
+    public void deleteBounty(UUID targetUuid) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM bounties WHERE target_uuid = ?")) {
+            ps.setString(1, targetUuid.toString());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete bounty", e);
+        }
+    }
+
+    // â”€â”€ Warps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    public Map<String, Location> loadWarps() {
+        Map<String, Location> warps = new LinkedHashMap<>();
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM warps")) {
+            while (rs.next()) {
+                String worldName = rs.getString("world");
+                if (worldName == null) continue;
+                warps.put(rs.getString("name").toLowerCase(),
+                        new LazyLocation(worldName, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"),
+                                rs.getFloat("yaw"), rs.getFloat("pitch")));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load warps", e);
+        }
+        return warps;
+    }
+
+    public void saveWarp(String name, Location loc) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO warps (name, world, x, y, z, yaw, pitch) VALUES (?,?,?,?,?,?,?)")) {
+            ps.setString(1, name.toLowerCase());
+            String worldName = null;
+            if (loc != null) {
+                if (loc instanceof LazyLocation lazy) {
+                    worldName = lazy.getWorldName();
+                } else if (loc.getWorld() != null) {
+                    worldName = loc.getWorld().getName();
+                }
+            }
+            ps.setString(2, worldName);
+            ps.setDouble(3, loc != null ? loc.getX() : 0.0);
+            ps.setDouble(4, loc != null ? loc.getY() : 0.0);
+            ps.setDouble(5, loc != null ? loc.getZ() : 0.0);
+            ps.setFloat(6, loc != null ? loc.getYaw() : 0.0f);
+            ps.setFloat(7, loc != null ? loc.getPitch() : 0.0f);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save warp " + name, e);
+        }
+    }
+
+    public void deleteWarp(String name) {
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM warps WHERE name = ?")) {
+            ps.setString(1, name.toLowerCase());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete warp " + name, e);
+        }
+    }
+
+    // â”€â”€ Sell history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    public record PortalData(
+            String displayName,
+            String cuboidName,
+            String destinationType,
+            String destinationValue,
+            boolean enabled,
+            String permission,
+            int priority,
+            long triggerCooldownMs,
+            String enterMessage,
+            String hologramWorld,
+            double hologramX,
+            double hologramY,
+            double hologramZ
+    ) {}
+
+    public Map<String, PortalData> loadPortals() {
+        Map<String, PortalData> portals = new LinkedHashMap<>();
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM portals ORDER BY LOWER(id)")) {
+            while (rs.next()) {
+                portals.put(rs.getString("id"), new PortalData(
+                        rs.getString("display_name"),
+                        rs.getString("cuboid_name"),
+                        rs.getString("destination_type"),
+                        rs.getString("destination_value"),
+                        rs.getInt("enabled") != 0,
+                        rs.getString("permission"),
+                        rs.getInt("priority"),
+                        rs.getLong("trigger_cooldown_ms"),
+                        rs.getString("enter_message"),
+                        rs.getString("hologram_world"),
+                        rs.getDouble("hologram_x"),
+                        rs.getDouble("hologram_y"),
+                        rs.getDouble("hologram_z")
+                ));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load portals", e);
+        }
+        return portals;
+    }
+
+    public void savePortal(String id, String displayName, String cuboidName, String destinationType,
+                           String destinationValue, boolean enabled, String permission, int priority,
+                           long triggerCooldownMs, String enterMessage, String hologramWorld,
+                           double hologramX, double hologramY, double hologramZ) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO portals " +
+                        "(id, display_name, cuboid_name, destination_type, destination_value, enabled, permission, priority, trigger_cooldown_ms, enter_message, hologram_world, hologram_x, hologram_y, hologram_z) " +
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+            ps.setString(1, id);
+            ps.setString(2, displayName);
+            ps.setString(3, cuboidName);
+            ps.setString(4, destinationType);
+            ps.setString(5, destinationValue);
+            ps.setInt(6, enabled ? 1 : 0);
+            ps.setString(7, permission);
+            ps.setInt(8, priority);
+            ps.setLong(9, triggerCooldownMs);
+            ps.setString(10, enterMessage);
+            ps.setString(11, hologramWorld);
+            ps.setDouble(12, hologramX);
+            ps.setDouble(13, hologramY);
+            ps.setDouble(14, hologramZ);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save portal " + id, e);
+        }
+    }
+
+    public void deletePortal(String id) {
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM portals WHERE id = ?")) {
+            ps.setString(1, id);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete portal " + id, e);
+        }
+    }
+
+    public record PlayerLogRecord(UUID uuid, String name, String category, String type, String details, long timestamp) {
+        public PlayerLogRecord(UUID uuid, String name, String category, String type, String details) {
+            this(uuid, name, category, type, details, System.currentTimeMillis());
+        }
+    }
+
+    public void addPlayerLog(UUID uuid, String name, String category, String type, String details, long timestamp) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "INSERT INTO player_logs (player_uuid, player_name, category, log_type, details, timestamp) VALUES (?,?,?,?,?,?)")) {
+            ps.setString(1, uuid.toString());
+            ps.setString(2, name);
+            ps.setString(3, category);
+            ps.setString(4, type);
+            ps.setString(5, details);
+            ps.setLong(6, timestamp);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to add player log", e);
+        }
+    }
+
+    public void addPlayerLogBatch(Collection<PlayerLogRecord> records) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+        boolean originalAutoCommit = true;
+        try {
+            originalAutoCommit = connection.getAutoCommit();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to inspect auto-commit state before player log batch", e);
+            return;
+        }
+        boolean autoCommitDisabled = false;
+        try {
+            connection.setAutoCommit(false);
+            autoCommitDisabled = true;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO player_logs (player_uuid, player_name, category, log_type, details, timestamp) VALUES (?,?,?,?,?,?)")) {
+                for (PlayerLogRecord record : records) {
+                    if (record == null || record.uuid() == null) {
+                        continue;
+                    }
+                    ps.setString(1, record.uuid().toString());
+                    ps.setString(2, record.name() != null ? record.name() : "");
+                    ps.setString(3, record.category() != null ? record.category() : "");
+                    ps.setString(4, record.type() != null ? record.type() : "");
+                    ps.setString(5, record.details() != null ? record.details() : "");
+                    ps.setLong(6, record.timestamp() > 0 ? record.timestamp() : System.currentTimeMillis());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+            connection.commit();
+        } catch (SQLException e) {
+            if (autoCommitDisabled) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackEx) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to roll back player log transaction", rollbackEx);
+                }
+            }
+            plugin.getLogger().log(Level.WARNING, "Failed to add player log batch", e);
+        } finally {
+            if (autoCommitDisabled) {
+                try {
+                    connection.setAutoCommit(originalAutoCommit);
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to restore auto-commit state after player log batch", e);
+                }
+            }
+        }
+    }
+
+    public List<PlayerLogEntry> getPlayerLogs(UUID uuid, int limit, int offset) {
+        List<PlayerLogEntry> list = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT id, player_uuid, player_name, category, log_type, details, timestamp FROM player_logs " +
+                "WHERE player_uuid = ? ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?")) {
+            ps.setString(1, uuid.toString());
+            ps.setInt(2, limit);
+            ps.setInt(3, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new PlayerLogEntry(
+                            rs.getLong("id"),
+                            UUID.fromString(rs.getString("player_uuid")),
+                            rs.getString("player_name"),
+                            rs.getString("category"),
+                            rs.getString("log_type"),
+                            rs.getString("details"),
+                            rs.getLong("timestamp")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get player logs", e);
+        }
+        return list;
+    }
+
+    public int getPlayerLogsCount(UUID uuid) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT COUNT(*) FROM player_logs WHERE player_uuid = ?")) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get player logs count", e);
+        }
+        return 0;
+    }
+
+    /** Newest-first log entries of one type. A null uuid reads every player on the server. */
+    public List<PlayerLogEntry> getLogsByType(UUID uuid, String logType, int limit, int offset) {
+        List<PlayerLogEntry> list = new ArrayList<>();
+        String where = uuid == null ? "log_type = ?" : "player_uuid = ? AND log_type = ?";
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT id, player_uuid, player_name, category, log_type, details, timestamp FROM player_logs " +
+                "WHERE " + where + " ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?")) {
+            int index = 1;
+            if (uuid != null) {
+                ps.setString(index++, uuid.toString());
+            }
+            ps.setString(index++, logType);
+            ps.setInt(index++, limit);
+            ps.setInt(index, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new PlayerLogEntry(
+                            rs.getLong("id"),
+                            UUID.fromString(rs.getString("player_uuid")),
+                            rs.getString("player_name"),
+                            rs.getString("category"),
+                            rs.getString("log_type"),
+                            rs.getString("details"),
+                            rs.getLong("timestamp")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get logs by type", e);
+        }
+        return list;
+    }
+
+    /** Number of log entries of one type. A null uuid counts every player on the server. */
+    public int getLogsByTypeCount(UUID uuid, String logType) {
+        String where = uuid == null ? "log_type = ?" : "player_uuid = ? AND log_type = ?";
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT COUNT(*) FROM player_logs WHERE " + where)) {
+            int index = 1;
+            if (uuid != null) {
+                ps.setString(index++, uuid.toString());
+            }
+            ps.setString(index, logType);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to count logs by type", e);
+        }
+        return 0;
+    }
+
+    public record SellHistoryRecord(UUID uuid, String itemName, int amount, double price, long timestamp) {
+        public SellHistoryRecord(UUID uuid, String itemName, int amount, double price) {
+            this(uuid, itemName, amount, price, System.currentTimeMillis());
+        }
+    }
+
+    public void addSellHistory(UUID uuid, String itemName, int amount, double price) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "INSERT INTO sell_history (player_uuid, item_name, amount, price, timestamp) VALUES (?,?,?,?,?)")) {
+            ps.setString(1, uuid.toString());
+            ps.setString(2, itemName);
+            ps.setInt(3, amount);
+            ps.setDouble(4, price);
+            ps.setLong(5, System.currentTimeMillis());
+            ps.executeUpdate();
+            updateSellSummaries(uuid, itemName, amount, price);
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to add sell history", e);
+        }
+    }
+
+    public void addSellHistoryBatch(Collection<SellHistoryRecord> records) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+        boolean originalAutoCommit = true;
+        try {
+            originalAutoCommit = connection.getAutoCommit();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to inspect auto-commit state before sell history batch", e);
+            return;
+        }
+        boolean autoCommitDisabled = false;
+        try {
+            connection.setAutoCommit(false);
+            autoCommitDisabled = true;
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO sell_history (player_uuid, item_name, amount, price, timestamp) VALUES (?,?,?,?,?)")) {
+                for (SellHistoryRecord record : records) {
+                    if (record == null || record.uuid() == null) {
+                        continue;
+                    }
+                    ps.setString(1, record.uuid().toString());
+                    ps.setString(2, record.itemName());
+                    ps.setInt(3, record.amount());
+                    ps.setDouble(4, record.price());
+                    ps.setLong(5, record.timestamp() > 0 ? record.timestamp() : System.currentTimeMillis());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+            connection.commit();
+
+            for (SellHistoryRecord record : records) {
+                if (record != null && record.uuid() != null) {
+                    updateSellSummaries(record.uuid(), record.itemName(), record.amount(), record.price());
+                }
+            }
+        } catch (SQLException e) {
+            if (autoCommitDisabled) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackEx) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to roll back sell history transaction", rollbackEx);
+                }
+            }
+            plugin.getLogger().log(Level.WARNING, "Failed to add sell history batch", e);
+        } finally {
+            if (autoCommitDisabled) {
+                try {
+                    connection.setAutoCommit(originalAutoCommit);
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to restore database auto-commit after sell history batch", e);
+                }
+            }
+        }
+    }
+
+    private void updateSellSummaries(UUID uuid, String itemName, int amount, double price) {
+        if (itemName != null && !itemName.isBlank()) {
+            updateSummaryItem(itemName, amount, price);
+        }
+        if (uuid != null) {
+            updateSummaryPlayer(uuid.toString(), price, amount);
+        }
+    }
+
+    private void updateSummaryItem(String itemName, int amount, double price) {
+        try (PreparedStatement psUpdate = connection.prepareStatement(
+                "UPDATE sell_summary_items SET total_amount = total_amount + ?, total_revenue = total_revenue + ?, sell_count = sell_count + 1 WHERE item_name = ?")) {
+            psUpdate.setLong(1, amount);
+            psUpdate.setDouble(2, price);
+            psUpdate.setString(3, itemName);
+            int updated = psUpdate.executeUpdate();
+            if (updated == 0) {
+                try (PreparedStatement psInsert = connection.prepareStatement(
+                        "INSERT INTO sell_summary_items (item_name, total_amount, total_revenue, sell_count) VALUES (?, ?, ?, 1)")) {
+                    psInsert.setString(1, itemName);
+                    psInsert.setLong(2, amount);
+                    psInsert.setDouble(3, price);
+                    psInsert.executeUpdate();
+                } catch (SQLException ignored) {}
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.FINE, "Failed to update item sell summary", e);
+        }
+    }
+
+    private void updateSummaryPlayer(String playerUuidStr, double price, int amount) {
+        try (PreparedStatement psUpdate = connection.prepareStatement(
+                "UPDATE sell_summary_players SET total_earned = total_earned + ?, total_amount = total_amount + ?, sell_count = sell_count + 1 WHERE player_uuid = ?")) {
+            psUpdate.setDouble(1, price);
+            psUpdate.setLong(2, amount);
+            psUpdate.setString(3, playerUuidStr);
+            int updated = psUpdate.executeUpdate();
+            if (updated == 0) {
+                try (PreparedStatement psInsert = connection.prepareStatement(
+                        "INSERT INTO sell_summary_players (player_uuid, total_earned, total_amount, sell_count) VALUES (?, ?, ?, 1)")) {
+                    psInsert.setString(1, playerUuidStr);
+                    psInsert.setDouble(2, price);
+                    psInsert.setLong(3, amount);
+                    psInsert.executeUpdate();
+                } catch (SQLException ignored) {}
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.FINE, "Failed to update player sell summary", e);
+        }
+    }
+
+    private void ensureSellSummariesPopulated() {
+        try (Statement st = connection.createStatement()) {
+            boolean emptyItems = false;
+            try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM sell_summary_items")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    emptyItems = true;
+                }
+            }
+            if (emptyItems) {
+                try {
+                    st.executeUpdate(
+                        "INSERT INTO sell_summary_items (item_name, total_amount, total_revenue, sell_count) " +
+                        "SELECT item_name, SUM(amount), SUM(price), COUNT(*) FROM sell_history WHERE item_name IS NOT NULL AND item_name != '' GROUP BY item_name"
+                    );
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.WARNING, "Could not backfill sell_summary_items directly from sell_history", e);
+                }
+            }
+
+            boolean emptyPlayers = false;
+            try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM sell_summary_players")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    emptyPlayers = true;
+                }
+            }
+            if (emptyPlayers) {
+                try {
+                    st.executeUpdate(
+                        "INSERT INTO sell_summary_players (player_uuid, total_earned, total_amount, sell_count) " +
+                        "SELECT player_uuid, SUM(price), SUM(amount), COUNT(*) FROM sell_history WHERE player_uuid IS NOT NULL AND player_uuid != '' GROUP BY player_uuid"
+                    );
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.WARNING, "Could not backfill sell_summary_players directly from sell_history", e);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to inspect/populate sell summary tables", e);
+        }
+    }
+
+    public void clearShopAnalyticsData() {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("DELETE FROM sell_history");
+            stmt.executeUpdate("DELETE FROM sell_progress");
+            stmt.executeUpdate("DELETE FROM sell_summary_items");
+            stmt.executeUpdate("DELETE FROM sell_summary_players");
+            stmt.executeUpdate("DELETE FROM player_logs WHERE log_type IN ('SHOP_BUY', 'SHOP_SELL')");
+            stmt.executeUpdate("UPDATE players SET money_spent = 0, money_made = 0");
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to clear shop analytics data", e);
+        }
+    }
+
+    public void addSellProgress(UUID uuid, SellCategory category, double amount) {
+        if (amount <= 0) {
+            return;
+        }
+
+        try (PreparedStatement update = connection.prepareStatement(
+                "UPDATE sell_progress SET earned = earned + ? WHERE player_uuid = ? AND category = ?")) {
+            update.setDouble(1, amount);
+            update.setString(2, uuid.toString());
+            update.setString(3, category.name());
+            if (update.executeUpdate() > 0) {
+                return;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to update sell progress", e);
+            return;
+        }
+
+        try (PreparedStatement insert = connection.prepareStatement(
+                "INSERT INTO sell_progress (player_uuid, category, earned) VALUES (?,?,?)")) {
+            insert.setString(1, uuid.toString());
+            insert.setString(2, category.name());
+            insert.setDouble(3, amount);
+            insert.executeUpdate();
+        } catch (SQLException e) {
+            try (PreparedStatement retryUpdate = connection.prepareStatement(
+                    "UPDATE sell_progress SET earned = earned + ? WHERE player_uuid = ? AND category = ?")) {
+                retryUpdate.setDouble(1, amount);
+                retryUpdate.setString(2, uuid.toString());
+                retryUpdate.setString(3, category.name());
+                retryUpdate.executeUpdate();
+            } catch (SQLException retryException) {
+                plugin.getLogger().log(Level.WARNING, "Failed to add sell progress", retryException);
+            }
+        }
+    }
+
+    public Map<SellCategory, Double> getSellProgress(UUID uuid) {
+        Map<SellCategory, Double> progress = new EnumMap<>(SellCategory.class);
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT category, earned FROM sell_progress WHERE player_uuid = ?")) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    SellCategory category = SellCategory.fromConfigKey(rs.getString("category")).orElse(null);
+                    if (category != null) {
+                        progress.put(category, rs.getDouble("earned"));
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load sell progress", e);
+        }
+
+        return progress;
+    }
+
+    public int countSellHistory(UUID uuid) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT COUNT(*) FROM sell_history WHERE player_uuid = ?")) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to count sell history", e);
+        }
+        return 0;
+    }
+
+    public List<SellHistoryEntry> getSellHistoryEntries(UUID uuid, int limit, int offset, boolean sortByPrice) {
+        List<SellHistoryEntry> list = new ArrayList<>();
+        String orderBy = sortByPrice ? "price DESC, timestamp DESC, id DESC" : "timestamp DESC, id DESC";
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT item_name, amount, price, timestamp FROM sell_history " +
+                "WHERE player_uuid = ? ORDER BY " + orderBy + " LIMIT ? OFFSET ?")) {
+            ps.setString(1, uuid.toString());
+            ps.setInt(2, limit);
+            ps.setInt(3, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new SellHistoryEntry(
+                            rs.getString("item_name"),
+                            rs.getInt("amount"),
+                            rs.getDouble("price"),
+                            rs.getLong("timestamp")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get sell history entries", e);
+        }
+
+        return list;
+    }
+
+    public List<String[]> getSellHistory(UUID uuid, int limit) {
+        List<String[]> list = new ArrayList<>();
+        for (SellHistoryEntry entry : getSellHistoryEntries(uuid, limit, 0, false)) {
+            list.add(new String[]{
+                    entry.itemName(),
+                    String.valueOf(entry.amount()),
+                    String.valueOf(entry.price()),
+                    String.valueOf(entry.timestamp())
+            });
+        }
+        return list;
+    }
+
+    public List<TopSoldItemEntry> getTopSoldItemsByRevenue(int limit) {
+        List<TopSoldItemEntry> list = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT item_name, total_amount, total_revenue, sell_count FROM sell_summary_items ORDER BY total_revenue DESC LIMIT ?")) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new TopSoldItemEntry(
+                            rs.getString("item_name"),
+                            rs.getLong("total_amount"),
+                            rs.getDouble("total_revenue"),
+                            rs.getInt("sell_count")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT item_name, SUM(amount) AS total_amount, SUM(price) AS total_revenue, COUNT(*) AS cnt " +
+                    "FROM sell_history GROUP BY item_name ORDER BY total_revenue DESC LIMIT ?")) {
+                ps.setInt(1, limit);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        list.add(new TopSoldItemEntry(
+                                rs.getString("item_name"),
+                                rs.getLong("total_amount"),
+                                rs.getDouble("total_revenue"),
+                                rs.getInt("cnt")
+                        ));
+                    }
+                }
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.WARNING, "Failed to get top sold items by revenue", ex);
+            }
+        }
+        return list;
+    }
+
+    public List<TopSoldItemEntry> getTopSoldItemsByVolume(int limit) {
+        List<TopSoldItemEntry> list = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT item_name, total_amount, total_revenue, sell_count FROM sell_summary_items ORDER BY total_amount DESC LIMIT ?")) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new TopSoldItemEntry(
+                            rs.getString("item_name"),
+                            rs.getLong("total_amount"),
+                            rs.getDouble("total_revenue"),
+                            rs.getInt("sell_count")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT item_name, SUM(amount) AS total_amount, SUM(price) AS total_revenue, COUNT(*) AS cnt " +
+                    "FROM sell_history GROUP BY item_name ORDER BY total_amount DESC LIMIT ?")) {
+                ps.setInt(1, limit);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        list.add(new TopSoldItemEntry(
+                                rs.getString("item_name"),
+                                rs.getLong("total_amount"),
+                                rs.getDouble("total_revenue"),
+                                rs.getInt("cnt")
+                        ));
+                    }
+                }
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.WARNING, "Failed to get top sold items by volume", ex);
+            }
+        }
+        return list;
+    }
+
+    public List<TopSellerEntry> getTopSellers(int limit) {
+        List<TopSellerEntry> list = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT s.player_uuid, p.username, s.total_earned, s.total_amount, s.sell_count " +
+                "FROM sell_summary_players s LEFT JOIN players p ON s.player_uuid = p.uuid " +
+                "ORDER BY s.total_earned DESC LIMIT ?")) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String rawUuid = rs.getString("player_uuid");
+                    UUID uuid = null;
+                    try {
+                        if (rawUuid != null) uuid = UUID.fromString(rawUuid);
+                    } catch (IllegalArgumentException ignored) {}
+
+                    String name = rs.getString("username");
+                    if (name == null || name.isBlank()) {
+                        name = uuid != null ? uuid.toString().substring(0, 8) : "Unknown";
+                    }
+
+                    list.add(new TopSellerEntry(
+                            uuid,
+                            name,
+                            rs.getDouble("total_earned"),
+                            rs.getLong("total_amount"),
+                            rs.getInt("sell_count")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT s.player_uuid, p.username, SUM(s.price) AS total_earned, SUM(s.amount) AS total_amount, COUNT(*) AS cnt " +
+                    "FROM sell_history s LEFT JOIN players p ON s.player_uuid = p.uuid " +
+                    "GROUP BY s.player_uuid ORDER BY total_earned DESC LIMIT ?")) {
+                ps.setInt(1, limit);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        String rawUuid = rs.getString("player_uuid");
+                        UUID uuid = null;
+                        try {
+                            if (rawUuid != null) uuid = UUID.fromString(rawUuid);
+                        } catch (IllegalArgumentException ignored) {}
+
+                        String name = rs.getString("username");
+                        if (name == null || name.isBlank()) {
+                            name = uuid != null ? uuid.toString().substring(0, 8) : "Unknown";
+                        }
+
+                        list.add(new TopSellerEntry(
+                                uuid,
+                                name,
+                                rs.getDouble("total_earned"),
+                                rs.getLong("total_amount"),
+                                rs.getInt("cnt")
+                        ));
+                    }
+                }
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.WARNING, "Failed to get top sellers", ex);
+            }
+        }
+        return list;
+    }
+
+    public List<GlobalSellHistoryEntry> getGlobalSellHistoryEntries(int limit, int offset) {
+        List<GlobalSellHistoryEntry> list = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT s.player_uuid, p.username, s.item_name, s.amount, s.price, s.timestamp " +
+                "FROM sell_history s LEFT JOIN players p ON s.player_uuid = p.uuid " +
+                "ORDER BY s.timestamp DESC, s.id DESC LIMIT ? OFFSET ?")) {
+            ps.setInt(1, limit);
+            ps.setInt(2, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String rawUuid = rs.getString("player_uuid");
+                    UUID uuid = null;
+                    try {
+                        if (rawUuid != null) uuid = UUID.fromString(rawUuid);
+                    } catch (IllegalArgumentException ignored) {}
+
+                    String name = rs.getString("username");
+                    if (name == null || name.isBlank()) {
+                        name = uuid != null ? uuid.toString().substring(0, 8) : "Unknown";
+                    }
+
+                    list.add(new GlobalSellHistoryEntry(
+                            uuid,
+                            name,
+                            rs.getString("item_name"),
+                            rs.getInt("amount"),
+                            rs.getDouble("price"),
+                            rs.getLong("timestamp")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get global sell history entries", e);
+        }
+        return list;
+    }
+
+    public int countGlobalSellHistory() {
+        return countRows("sell_history");
+    }
+
+    public double getTotalSellRevenue() {
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT SUM(total_revenue) FROM sell_summary_items")) {
+            if (rs.next()) {
+                return rs.getDouble(1);
+            }
+        } catch (SQLException e) {
+            try (Statement st = connection.createStatement();
+                 ResultSet rs = st.executeQuery("SELECT SUM(price) FROM sell_history")) {
+                if (rs.next()) {
+                    return rs.getDouble(1);
+                }
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.WARNING, "Failed to get total sell revenue", ex);
+            }
+        }
+        return 0.0;
+    }
+
+    public long getTotalItemsSold() {
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT SUM(total_amount) FROM sell_summary_items")) {
+            if (rs.next()) {
+                return rs.getLong(1);
+            }
+        } catch (SQLException e) {
+            try (Statement st = connection.createStatement();
+                 ResultSet rs = st.executeQuery("SELECT SUM(amount) FROM sell_history")) {
+                if (rs.next()) {
+                    return rs.getLong(1);
+                }
+            } catch (SQLException ex) {
+                plugin.getLogger().log(Level.WARNING, "Failed to get total items sold", ex);
+            }
+        }
+        return 0L;
+    }
+
+    public int getTotalShopBuyCount() {
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM player_logs WHERE log_type = 'SHOP_BUY'")) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get total shop buy count", e);
+        }
+        return 0;
+    }
+
+    public double getTotalShopBuySpend() {
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT SUM(money_spent) FROM players")) {
+            if (rs.next()) {
+                return rs.getDouble(1);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get total shop buy spend", e);
+        }
+        return 0.0;
+    }
+
+    public int getActiveTradersCount(long sinceTimestamp) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT COUNT(DISTINCT player_uuid) FROM sell_history WHERE timestamp >= ?")) {
+            ps.setLong(1, sinceTimestamp);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get active traders count", e);
+        }
+        return 0;
+    }
+
+    public List<TopBuyerEntry> getTopBuyers(int limit) {
+        List<TopBuyerEntry> list = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT uuid, username, money_spent FROM players WHERE money_spent > 0 ORDER BY money_spent DESC LIMIT ?")) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String rawUuid = rs.getString("uuid");
+                    UUID uuid = null;
+                    try {
+                        if (rawUuid != null) uuid = UUID.fromString(rawUuid);
+                    } catch (IllegalArgumentException ignored) {}
+
+                    String name = rs.getString("username");
+                    if (name == null || name.isBlank()) {
+                        name = uuid != null ? uuid.toString().substring(0, 8) : "Unknown";
+                    }
+
+                    list.add(new TopBuyerEntry(uuid, name, rs.getDouble("money_spent")));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get top buyers", e);
+        }
+        return list;
+    }
+
+    public List<HourlyActivityEntry> getHourlyActivityStats(int hours) {
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("H:00").withZone(java.time.ZoneId.systemDefault());
+        return getActivityStatsBinned(hours * 3600000L, hours, formatter);
+    }
+
+    public List<HourlyActivityEntry> getMinuteActivityStats(int buckets) {
+        long intervalMs = (60 * 60 * 1000L) / Math.max(1, buckets);
+        long totalMs = intervalMs * Math.max(1, buckets);
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("H:mm").withZone(java.time.ZoneId.systemDefault());
+        return getActivityStatsBinned(totalMs, buckets, formatter);
+    }
+
+    public List<HourlyActivityEntry> getDailyActivityStats(int days) {
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d", Locale.US).withZone(java.time.ZoneId.systemDefault());
+        return getActivityStatsBinned(days * 86400000L, days, formatter);
+    }
+
+    private List<HourlyActivityEntry> getActivityStatsBinned(long totalDurationMs, int numBuckets, java.time.format.DateTimeFormatter formatter) {
+        List<HourlyActivityEntry> list = new ArrayList<>();
+        long now = System.currentTimeMillis();
+        long intervalMs = Math.max(1L, totalDurationMs / Math.max(1, numBuckets));
+        long startWindow = now - totalDurationMs;
+
+        int[] salesCounts = new int[numBuckets];
+        int[] purchaseCounts = new int[numBuckets];
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT timestamp FROM sell_history WHERE timestamp >= ?")) {
+            ps.setLong(1, startWindow);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    long ts = rs.getLong("timestamp");
+                    int bucketIndex = (int) ((ts - startWindow) / intervalMs);
+                    if (bucketIndex >= numBuckets) bucketIndex = numBuckets - 1;
+                    if (bucketIndex >= 0) salesCounts[bucketIndex]++;
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get sell_history activity timestamps", e);
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT timestamp FROM player_logs WHERE log_type = 'SHOP_BUY' AND timestamp >= ?")) {
+            ps.setLong(1, startWindow);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    long ts = rs.getLong("timestamp");
+                    int bucketIndex = (int) ((ts - startWindow) / intervalMs);
+                    if (bucketIndex >= numBuckets) bucketIndex = numBuckets - 1;
+                    if (bucketIndex >= 0) purchaseCounts[bucketIndex]++;
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to get player_logs activity timestamps", e);
+        }
+
+        int totalSalesFound = 0;
+        int totalPurchasesFound = 0;
+
+        for (int i = 0; i < numBuckets; i++) {
+            int bucketFromOldest = (numBuckets - 1 - i);
+            long endTime = now - (bucketFromOldest * intervalMs);
+            String label = formatter.format(java.time.Instant.ofEpochMilli(endTime));
+
+            int sCount = salesCounts[i];
+            int pCount = purchaseCounts[i];
+            totalSalesFound += sCount;
+            totalPurchasesFound += pCount;
+
+            list.add(new HourlyActivityEntry(label, sCount, pCount));
+        }
+
+        int globalSales = countGlobalSellHistory();
+        int globalPurchases = getTotalShopBuyCount();
+
+        if (totalSalesFound == 0 && globalSales > 0 && !list.isEmpty()) {
+            int baseSales = globalSales / list.size();
+            int remainderSales = globalSales % list.size();
+            for (int i = 0; i < list.size(); i++) {
+                HourlyActivityEntry old = list.get(i);
+                int count = baseSales + (i == list.size() - 1 ? remainderSales : 0);
+                list.set(i, new HourlyActivityEntry(old.hourLabel(), count, old.purchaseCount()));
+            }
+        }
+
+        if (totalPurchasesFound == 0 && globalPurchases > 0 && !list.isEmpty()) {
+            int baseBuy = globalPurchases / list.size();
+            int remainderBuy = globalPurchases % list.size();
+            for (int i = 0; i < list.size(); i++) {
+                HourlyActivityEntry old = list.get(i);
+                int count = baseBuy + (i == list.size() - 1 ? remainderBuy : 0);
+                list.set(i, new HourlyActivityEntry(old.hourLabel(), old.salesCount(), count));
+            }
+        }
+
+        return list;
+    }
+
+    private void fixNullTimestamps() {
+        long now = System.currentTimeMillis();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "UPDATE sell_history SET timestamp = ? WHERE timestamp IS NULL OR timestamp = 0")) {
+            ps.setLong(1, now);
+            ps.executeUpdate();
+        } catch (SQLException ignored) {}
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "UPDATE player_logs SET timestamp = ? WHERE timestamp IS NULL OR timestamp = 0")) {
+            ps.setLong(1, now);
+            ps.executeUpdate();
+        } catch (SQLException ignored) {}
+    }
+
+    public int countSellDocuments() {
+        return countRows("sell_history") + countRows("sell_progress");
+    }
+
+    public int clearSellHistoryAndProgress() {
+        int historyDeleted = executeUpdate("DELETE FROM sell_history");
+        int progressDeleted = executeUpdate("DELETE FROM sell_progress");
+        return historyDeleted + progressDeleted;
+    }
+
+    public long createPunishmentRecord(PunishmentRecord record) {
+        if (record == null || record.getTargetUuid() == null) {
+            return -1L;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "INSERT INTO punishments (" +
+                        "target_uuid, target_name_snapshot, type, reason, issuer_uuid, issuer_name_snapshot, " +
+                        "issued_at, expires_at, removed_by_uuid, removed_by_name_snapshot, removed_at, " +
+                        "removal_reason, source_server, scope" +
+                        ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                Statement.RETURN_GENERATED_KEYS
+        )) {
+            ps.setString(1, record.getTargetUuid().toString());
+            ps.setString(2, record.getTargetNameSnapshot());
+            ps.setString(3, record.getType().name());
+            ps.setString(4, record.getReason());
+            ps.setString(5, record.getIssuerUuid() == null ? null : record.getIssuerUuid().toString());
+            ps.setString(6, record.getIssuerNameSnapshot());
+            ps.setLong(7, record.getIssuedAt());
+            if (record.getExpiresAt() == null) {
+                ps.setNull(8, Types.BIGINT);
+            } else {
+                ps.setLong(8, record.getExpiresAt());
+            }
+            ps.setString(9, record.getRemovedByUuid() == null ? null : record.getRemovedByUuid().toString());
+            ps.setString(10, record.getRemovedByNameSnapshot());
+            if (record.getRemovedAt() == null) {
+                ps.setNull(11, Types.BIGINT);
+            } else {
+                ps.setLong(11, record.getRemovedAt());
+            }
+            ps.setString(12, record.getRemovalReason());
+            ps.setString(13, record.getSourceServer());
+            ps.setString(14, record.getScope().name());
+            ps.executeUpdate();
+
+            try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    return generatedKeys.getLong(1);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to create punishment record for " + record.getTargetUuid(), e);
+        }
+
+        return -1L;
+    }
+
+    public PunishmentRecord loadPunishmentRecord(long punishmentId) {
+        if (punishmentId <= 0L) {
+            return null;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM punishments WHERE id = ? LIMIT 1")) {
+            ps.setLong(1, punishmentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapPunishmentRow(rs);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load punishment record #" + punishmentId, e);
+        }
+
+        return null;
+    }
+
+    public boolean markPunishmentRemoved(long punishmentId,
+                                         UUID removedByUuid,
+                                         String removedByNameSnapshot,
+                                         long removedAt,
+                                         String removalReason) {
+        if (punishmentId <= 0L) {
+            return false;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "UPDATE punishments SET removed_by_uuid = ?, removed_by_name_snapshot = ?, removed_at = ?, removal_reason = ? " +
+                        "WHERE id = ?")) {
+            ps.setString(1, removedByUuid == null ? null : removedByUuid.toString());
+            ps.setString(2, removedByNameSnapshot);
+            ps.setLong(3, removedAt);
+            ps.setString(4, removalReason);
+            ps.setLong(5, punishmentId);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to mark punishment #" + punishmentId + " as removed", e);
+        }
+
+        return false;
+    }
+
+    public boolean deletePunishmentRecord(long punishmentId) {
+        if (punishmentId <= 0L) {
+            return false;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM punishments WHERE id = ?")) {
+            ps.setLong(1, punishmentId);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete punishment #" + punishmentId, e);
+        }
+
+        return false;
+    }
+
+    public List<FreezeState> loadActiveFreezeStates() {
+        List<FreezeState> states = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM freeze_states WHERE active = 1")) {
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    states.add(mapFreezeRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load active freeze states", e);
+        }
+        return states;
+    }
+
+    public void saveFreezeState(FreezeState state) {
+        if (state == null || state.getTargetUuid() == null) {
+            return;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO freeze_states " +
+                        "(target_uuid, target_name_snapshot, frozen_by_uuid, frozen_by_name_snapshot, frozen_at, source_server, active) " +
+                        "VALUES (?,?,?,?,?,?,1)")) {
+            ps.setString(1, state.getTargetUuid().toString());
+            ps.setString(2, state.getTargetNameSnapshot());
+            ps.setString(3, state.getFrozenByUuid() == null ? null : state.getFrozenByUuid().toString());
+            ps.setString(4, state.getFrozenByNameSnapshot());
+            ps.setLong(5, state.getFrozenAt());
+            ps.setString(6, state.getSourceServer());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save freeze state for " + state.getTargetUuid(), e);
+        }
+    }
+
+    public boolean deleteFreezeState(UUID targetUuid) {
+        if (targetUuid == null) {
+            return false;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM freeze_states WHERE target_uuid = ?")) {
+            ps.setString(1, targetUuid.toString());
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete freeze state for " + targetUuid, e);
+        }
+        return false;
+    }
+
+    public List<StaffModeState> loadActiveStaffModeStates() {
+        List<StaffModeState> states = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM staff_mode_states")) {
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    states.add(mapStaffModeStateRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load active staff mode states", e);
+        }
+        return states;
+    }
+
+    public void saveStaffModeState(StaffModeState state) {
+        if (state == null || state.getStaffUuid() == null) {
+            return;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO staff_mode_states " +
+                        "(staff_uuid, staff_name_snapshot, enabled_at, source_server, vanish_active, better_view_active, snapshot_present, previous_allow_flight, previous_flying, previous_selected_slot, night_vision_owned, previous_game_mode) " +
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")) {
+            ps.setString(1, state.getStaffUuid().toString());
+            ps.setString(2, state.getStaffNameSnapshot());
+            ps.setLong(3, state.getEnabledAt());
+            ps.setString(4, state.getSourceServer());
+            ps.setInt(5, state.isVanishActive() ? 1 : 0);
+            ps.setInt(6, state.isBetterViewActive() ? 1 : 0);
+            ps.setInt(7, state.isSnapshotPresent() ? 1 : 0);
+            ps.setInt(8, state.isPreviousAllowFlight() ? 1 : 0);
+            ps.setInt(9, state.isPreviousFlying() ? 1 : 0);
+            ps.setInt(10, state.getPreviousSelectedSlot());
+            ps.setInt(11, state.isNightVisionOwned() ? 1 : 0);
+            ps.setString(12, state.getPreviousGameMode().name());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save staff mode state for " + state.getStaffUuid(), e);
+        }
+    }
+
+    public StaffInventorySnapshot loadStaffModeSnapshot(UUID staffUuid) {
+        if (staffUuid == null) {
+            return null;
+        }
+
+        ItemStack[] storageContents = new ItemStack[36];
+        ItemStack[] armorContents = new ItemStack[4];
+        ItemStack offhand = null;
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT section, slot, item_data FROM staff_mode_snapshot_items WHERE staff_uuid = ? ORDER BY section ASC, slot ASC")) {
+            ps.setString(1, staffUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String section = rs.getString("section");
+                    int slot = rs.getInt("slot");
+                    ItemStack item = deserializeItemStack(rs.getString("item_data"));
+                    if ("STORAGE".equalsIgnoreCase(section)) {
+                        if (slot >= 0 && slot < storageContents.length) {
+                            storageContents[slot] = item;
+                        }
+                        continue;
+                    }
+                    if ("ARMOR".equalsIgnoreCase(section)) {
+                        if (slot >= 0 && slot < armorContents.length) {
+                            armorContents[slot] = item;
+                        }
+                        continue;
+                    }
+                    if ("OFFHAND".equalsIgnoreCase(section) && slot == 0) {
+                        offhand = item;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load staff mode snapshot for " + staffUuid, e);
+            return null;
+        }
+
+        return new StaffInventorySnapshot(storageContents, armorContents, offhand);
+    }
+
+    public boolean saveStaffModeSnapshot(UUID staffUuid, StaffInventorySnapshot snapshot) {
+        if (staffUuid == null || snapshot == null || connection == null) {
+            return false;
+        }
+
+        boolean originalAutoCommit;
+        try {
+            originalAutoCommit = connection.getAutoCommit();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to inspect auto-commit state before Staff Mode snapshot save", e);
+            return false;
+        }
+
+        boolean autoCommitDisabled = false;
+        try {
+            connection.setAutoCommit(false);
+            autoCommitDisabled = true;
+
+            try (PreparedStatement deleteStatement = connection.prepareStatement(
+                    "DELETE FROM staff_mode_snapshot_items WHERE staff_uuid = ?")) {
+                deleteStatement.setString(1, staffUuid.toString());
+                deleteStatement.executeUpdate();
+            }
+
+            try (PreparedStatement insertStatement = connection.prepareStatement(
+                    "INSERT INTO staff_mode_snapshot_items (staff_uuid, section, slot, item_data) VALUES (?,?,?,?)")) {
+                ItemStack[] storageContents = snapshot.getStorageContents();
+                for (int slot = 0; slot < storageContents.length; slot++) {
+                    insertSnapshotItem(insertStatement, staffUuid, "STORAGE", slot, storageContents[slot]);
+                }
+
+                ItemStack[] armorContents = snapshot.getArmorContents();
+                for (int slot = 0; slot < armorContents.length; slot++) {
+                    insertSnapshotItem(insertStatement, staffUuid, "ARMOR", slot, armorContents[slot]);
+                }
+
+                insertSnapshotItem(insertStatement, staffUuid, "OFFHAND", 0, snapshot.getOffhandItem());
+                insertStatement.executeBatch();
+            }
+
+            connection.commit();
+            return true;
+        } catch (Exception e) {
+            if (autoCommitDisabled) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackException) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to roll back Staff Mode snapshot save for " + staffUuid, rollbackException);
+                }
+            }
+            plugin.getLogger().log(Level.WARNING, "Failed to save Staff Mode snapshot for " + staffUuid, e);
+            return false;
+        } finally {
+            if (autoCommitDisabled) {
+                try {
+                    connection.setAutoCommit(originalAutoCommit);
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to restore auto-commit after Staff Mode snapshot save", e);
+                }
+            }
+        }
+    }
+
+    public boolean deleteStaffModeSnapshot(UUID staffUuid) {
+        if (staffUuid == null) {
+            return false;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM staff_mode_snapshot_items WHERE staff_uuid = ?")) {
+            ps.setString(1, staffUuid.toString());
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete staff mode snapshot for " + staffUuid, e);
+        }
+        return false;
+    }
+
+    public boolean deleteStaffModeState(UUID staffUuid) {
+        if (staffUuid == null) {
+            return false;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM staff_mode_states WHERE staff_uuid = ?")) {
+            ps.setString(1, staffUuid.toString());
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete staff mode state for " + staffUuid, e);
+        }
+        return false;
+    }
+
+    public int countPunishmentHistory(UUID targetUuid, PunishmentQuery query, long now) {
+        return countPunishmentHistory(targetUuid, null, query, now);
+    }
+
+    public int countPunishmentHistory(UUID targetUuid, String targetName, PunishmentQuery query, long now) {
+        if (targetUuid == null && (targetName == null || targetName.isBlank())) {
+            return 0;
+        }
+
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM punishments");
+        List<Object> parameters = new ArrayList<>();
+        appendPunishmentFilters(sql, parameters, targetUuid, targetName, query, now);
+
+        try (PreparedStatement ps = connection.prepareStatement(sql.toString())) {
+            bindParameters(ps, parameters);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to count punishment history for " + targetUuid, e);
+        }
+
+        return 0;
+    }
+
+    public List<PunishmentRecord> loadPunishmentHistory(UUID targetUuid, PunishmentQuery query, int limit, int offset, long now) {
+        return loadPunishmentHistory(targetUuid, null, query, limit, offset, now);
+    }
+
+    public List<PunishmentRecord> loadPunishmentHistory(UUID targetUuid, String targetName, PunishmentQuery query, int limit, int offset, long now) {
+        List<PunishmentRecord> records = new ArrayList<>();
+        if (targetUuid == null && (targetName == null || targetName.isBlank())) {
+            return records;
+        }
+
+        StringBuilder sql = new StringBuilder("SELECT * FROM punishments");
+        List<Object> parameters = new ArrayList<>();
+        appendPunishmentFilters(sql, parameters, targetUuid, targetName, query, now);
+
+        PunishmentSortOrder sortOrder = query == null ? PunishmentSortOrder.NEWEST : query.sortOrder();
+        sql.append(sortOrder == PunishmentSortOrder.OLDEST
+                ? " ORDER BY issued_at ASC, id ASC"
+                : " ORDER BY issued_at DESC, id DESC");
+        sql.append(" LIMIT ? OFFSET ?");
+        parameters.add(Math.max(1, limit));
+        parameters.add(Math.max(0, offset));
+
+        try (PreparedStatement ps = connection.prepareStatement(sql.toString())) {
+            bindParameters(ps, parameters);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    records.add(mapPunishmentRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load punishment history for " + targetUuid, e);
+        }
+
+        return records;
+    }
+
+    public int countAllPunishments(PunishmentQuery query, String search, long now) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM punishments");
+        List<Object> parameters = new ArrayList<>();
+        appendGlobalPunishmentFilters(sql, parameters, search, query, now);
+
+        try (PreparedStatement ps = connection.prepareStatement(sql.toString())) {
+            bindParameters(ps, parameters);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to count server-wide punishments", e);
+        }
+
+        return 0;
+    }
+
+    public List<PunishmentRecord> loadAllPunishments(PunishmentQuery query, String search, int limit, int offset, long now) {
+        List<PunishmentRecord> records = new ArrayList<>();
+
+        StringBuilder sql = new StringBuilder("SELECT * FROM punishments");
+        List<Object> parameters = new ArrayList<>();
+        appendGlobalPunishmentFilters(sql, parameters, search, query, now);
+
+        PunishmentSortOrder sortOrder = query == null ? PunishmentSortOrder.NEWEST : query.sortOrder();
+        sql.append(sortOrder == PunishmentSortOrder.OLDEST
+                ? " ORDER BY issued_at ASC, id ASC"
+                : " ORDER BY issued_at DESC, id DESC");
+        sql.append(" LIMIT ? OFFSET ?");
+        parameters.add(Math.max(1, limit));
+        parameters.add(Math.max(0, offset));
+
+        try (PreparedStatement ps = connection.prepareStatement(sql.toString())) {
+            bindParameters(ps, parameters);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    records.add(mapPunishmentRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load server-wide punishments", e);
+        }
+
+        return records;
+    }
+
+    // â”€â”€ Cuboids â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    public record CuboidData(String world, int x1, int y1, int z1, int x2, int y2, int z2) {}
+
+    public Map<String, CuboidData> loadCuboids() {
+        Map<String, CuboidData> cuboids = new LinkedHashMap<>();
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM cuboids")) {
+            while (rs.next()) {
+                cuboids.put(rs.getString("name"), new CuboidData(
+                        rs.getString("world"),
+                        rs.getInt("x1"),
+                        rs.getInt("y1"),
+                        rs.getInt("z1"),
+                        rs.getInt("x2"),
+                        rs.getInt("y2"),
+                        rs.getInt("z2")
+                ));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load cuboids", e);
+        }
+        return cuboids;
+    }
+
+    public void saveCuboid(String name, String world, int x1, int y1, int z1, int x2, int y2, int z2) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO cuboids (name, world, x1, y1, z1, x2, y2, z2) VALUES (?,?,?,?,?,?,?,?)")) {
+            ps.setString(1, name);
+            ps.setString(2, world);
+            ps.setInt(3, x1); ps.setInt(4, y1); ps.setInt(5, z1);
+            ps.setInt(6, x2); ps.setInt(7, y2); ps.setInt(8, z2);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save cuboid " + name, e);
+        }
+    }
+
+    public void deleteCuboid(String name) {
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM cuboids WHERE name = ?")) {
+            ps.setString(1, name);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete cuboid " + name, e);
+        }
+    }
+
+    // â”€â”€ Misc â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    public List<SpawnerInstance> loadAllSpawners() {
+        List<SpawnerInstance> spawners = new ArrayList<>();
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM spawners ORDER BY id ASC")) {
+            while (rs.next()) {
+                double storedXp = 0.0;
+                try {
+                    storedXp = rs.getDouble("stored_xp");
+                } catch (Exception ignored) {}
+
+                SpawnerInstance instance = new SpawnerInstance(
+                        rs.getLong("id"),
+                        rs.getString("world"),
+                        rs.getInt("x"),
+                        rs.getInt("y"),
+                        rs.getInt("z"),
+                        UUID.fromString(rs.getString("owner_uuid")),
+                        rs.getString("owner_name"),
+                        rs.getString("mob_type"),
+                        rs.getLong("stack_amount"),
+                        SpawnerInstance.AccessMode.fromString(rs.getString("access_mode"), SpawnerInstance.AccessMode.OWNER_ONLY),
+                        rs.getLong("last_processed_at"),
+                        rs.getLong("created_at"),
+                        rs.getLong("updated_at"),
+                        storedXp
+                );
+                String disabledKeysRaw = rs.getString("disabled_loot_keys");
+                if (disabledKeysRaw != null && !disabledKeysRaw.isBlank()) {
+                    instance.setDisabledLootKeys(List.of(disabledKeysRaw.split(",")));
+                }
+                spawners.add(instance);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load managed spawners", e);
+        }
+        return spawners;
+    }
+
+    public Map<Long, List<SpawnerLootEntry>> loadAllSpawnerLoot() {
+        Map<Long, List<SpawnerLootEntry>> lootBySpawnerId = new HashMap<>();
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM spawner_loot ORDER BY spawner_id ASC, loot_key ASC")) {
+            while (rs.next()) {
+                long spawnerId = rs.getLong("spawner_id");
+                lootBySpawnerId.computeIfAbsent(spawnerId, ignored -> new ArrayList<>()).add(
+                        new SpawnerLootEntry(
+                                rs.getString("loot_key"),
+                                Material.matchMaterial(rs.getString("material")),
+                                rs.getLong("amount")
+                        )
+                );
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to load managed spawner loot", e);
+        }
+        return lootBySpawnerId;
+    }
+
+    public long createSpawner(SpawnerInstance instance) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "INSERT INTO spawners (world, x, y, z, owner_uuid, owner_name, mob_type, stack_amount, access_mode, last_processed_at, created_at, updated_at, disabled_loot_keys, stored_xp) " +
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                Statement.RETURN_GENERATED_KEYS
+        )) {
+            ps.setString(1, instance.getWorld());
+            ps.setInt(2, instance.getX());
+            ps.setInt(3, instance.getY());
+            ps.setInt(4, instance.getZ());
+            ps.setString(5, instance.getOwnerUuid().toString());
+            ps.setString(6, instance.getOwnerNameSnapshot());
+            ps.setString(7, instance.getMobTypeKey());
+            ps.setLong(8, instance.getStackAmount());
+            ps.setString(9, instance.getAccessMode().name());
+            ps.setLong(10, instance.getLastProcessedAt());
+            ps.setLong(11, instance.getCreatedAt());
+            ps.setLong(12, instance.getUpdatedAt());
+            ps.setString(13, String.join(",", instance.getDisabledLootKeys()));
+            ps.setDouble(14, instance.getStoredXp());
+            ps.executeUpdate();
+
+            try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    return generatedKeys.getLong(1);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to create managed spawner", e);
+        }
+        return -1L;
+    }
+
+    public synchronized void saveSpawner(SpawnerInstance instance) {
+        if (instance.getId() <= 0L) {
+            long newId = createSpawner(instance);
+            if (newId > 0L) {
+                instance.setId(newId);
+            }
+            return;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(
+                "REPLACE INTO spawners " +
+                        "(id, world, x, y, z, owner_uuid, owner_name, mob_type, stack_amount, access_mode, last_processed_at, created_at, updated_at, disabled_loot_keys, stored_xp) " +
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+            ps.setLong(1, instance.getId());
+            ps.setString(2, instance.getWorld());
+            ps.setInt(3, instance.getX());
+            ps.setInt(4, instance.getY());
+            ps.setInt(5, instance.getZ());
+            ps.setString(6, instance.getOwnerUuid().toString());
+            ps.setString(7, instance.getOwnerNameSnapshot());
+            ps.setString(8, instance.getMobTypeKey());
+            ps.setLong(9, instance.getStackAmount());
+            ps.setString(10, instance.getAccessMode().name());
+            ps.setLong(11, instance.getLastProcessedAt());
+            ps.setLong(12, instance.getCreatedAt());
+            ps.setLong(13, instance.getUpdatedAt());
+            ps.setString(14, String.join(",", instance.getDisabledLootKeys()));
+            ps.setDouble(15, instance.getStoredXp());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to save managed spawner " + instance.getId(), e);
+        }
+    }
+
+    public synchronized void replaceSpawnerLoot(long spawnerId, Collection<SpawnerLootEntry> lootEntries) {
+        boolean autoCommitDisabled = false;
+        try {
+            connection.setAutoCommit(false);
+            autoCommitDisabled = true;
+
+            try (PreparedStatement delete = connection.prepareStatement("DELETE FROM spawner_loot WHERE spawner_id = ?")) {
+                delete.setLong(1, spawnerId);
+                delete.executeUpdate();
+            }
+
+            if (lootEntries != null && !lootEntries.isEmpty()) {
+                try (PreparedStatement insert = connection.prepareStatement(
+                        "INSERT INTO spawner_loot (spawner_id, loot_key, material, amount) VALUES (?,?,?,?)")) {
+                    for (SpawnerLootEntry entry : lootEntries) {
+                        if (entry == null || entry.getAmount() <= 0L) {
+                            continue;
+                        }
+
+                        insert.setLong(1, spawnerId);
+                        insert.setString(2, entry.getKey());
+                        insert.setString(3, entry.getMaterial().name());
+                        insert.setLong(4, entry.getAmount());
+                        insert.addBatch();
+                    }
+                    insert.executeBatch();
+                }
+            }
+
+            connection.commit();
+        } catch (SQLException e) {
+            if (autoCommitDisabled) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackException) {
+                    plugin.getLogger().log(Level.WARNING, "Failed to roll back spawner loot transaction", rollbackException);
+                }
+            }
+            plugin.getLogger().log(Level.WARNING, "Failed to replace managed spawner loot for spawner " + spawnerId, e);
+        } finally {
+            if (autoCommitDisabled) {
+                try {
+                    connection.setAutoCommit(true);
+                } catch (SQLException ignored) {
+                }
+            }
+        }
+    }
+
+    public void deleteSpawner(long spawnerId) {
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM spawners WHERE id = ?")) {
+            ps.setLong(1, spawnerId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete managed spawner " + spawnerId, e);
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM spawner_loot WHERE spawner_id = ?")) {
+            ps.setLong(1, spawnerId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to delete managed spawner loot " + spawnerId, e);
+        }
+    }
+
+    private void execute(String sql) throws SQLException {
+        if (handleCreateIndexIfNeeded(sql)) {
+            return;
+        }
+        try (Statement st = connection.createStatement()) {
+            st.execute(adaptSchemaSql(sql));
+        }
+    }
+
+    public void executeSchema(Statement statement, String sql) throws SQLException {
+        if (handleCreateIndexIfNeeded(sql)) {
+            return;
+        }
+        statement.execute(adaptSchemaSql(sql));
+    }
+
+    public String adaptSchemaSql(String sql) {
+        if (!isMySql() || sql == null || sql.isBlank()) {
+            return sql;
+        }
+
+        String adapted = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "BIGINT PRIMARY KEY AUTO_INCREMENT");
+        adapted = adapted.replaceAll("(?i)\\bINTEGER\\b", "BIGINT");
+        adapted = adapted.replaceAll("(?i)\\bREAL\\b", "DOUBLE");
+        adapted = adapted.replaceAll("(?i)(`?)\\b(?!(?:item_data|details|reason|removal_reason|texture_value|texture_signature|disabled_loot_keys)\\b)([a-z0-9_]+)\\b(`?)\\s+TEXT\\b", "$1$2$3 VARCHAR(191)");
+        adapted = adapted.replaceAll("(?i)\\b(?<!`)rows(?!`)\\b", "`rows`");
+        return adapted;
+    }
+
+    private boolean handleCreateIndexIfNeeded(String sql) throws SQLException {
+        if (sql == null || sql.isBlank()) {
+            return false;
+        }
+
+        Matcher matcher = CREATE_INDEX_PATTERN.matcher(sql.trim());
+        if (!matcher.matches()) {
+            return false;
+        }
+
+        createIndexIfMissing(matcher.group(1), matcher.group(2), matcher.group(3));
+        return true;
+    }
+
+    public void createIndexIfMissing(String indexName, String table, String columns) throws SQLException {
+        if (indexName == null || indexName.isBlank() || table == null || table.isBlank() || columns == null || columns.isBlank()) {
+            return;
+        }
+
+        if (isMySql()) {
+            fixMySqlIndexColumnTypes(table, columns);
+
+            DatabaseMetaData metaData = connection.getMetaData();
+            try (ResultSet rs = metaData.getIndexInfo(connection.getCatalog(), null, table, false, false)) {
+                while (rs.next()) {
+                    String existingName = rs.getString("INDEX_NAME");
+                    if (indexName.equalsIgnoreCase(existingName)) {
+                        return;
+                    }
+                }
+            }
+
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("CREATE INDEX " + indexName + " ON " + table + " (" + columns + ")");
+            }
+            return;
+        }
+
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE INDEX IF NOT EXISTS " + indexName + " ON " + table + " (" + columns + ")");
+        }
+    }
+
+    private void fixMySqlIndexColumnTypes(String table, String columns) {
+        if (!isMySql()) return;
+        String[] colArray = columns.split(",");
+        for (String rawCol : colArray) {
+            String colName = rawCol.trim().split("\\s+")[0].replaceAll("[`\"'\\[\\]]", "");
+            if (colName.isBlank()) continue;
+            try {
+                DatabaseMetaData metaData = connection.getMetaData();
+                try (ResultSet rs = metaData.getColumns(connection.getCatalog(), null, table, colName)) {
+                    if (rs.next()) {
+                        String typeName = rs.getString("TYPE_NAME");
+                        String isNullable = rs.getString("IS_NULLABLE");
+                        if ("TEXT".equalsIgnoreCase(typeName) || "MEDIUMTEXT".equalsIgnoreCase(typeName) || "LONGTEXT".equalsIgnoreCase(typeName)) {
+                            String nullability = "NO".equalsIgnoreCase(isNullable) ? " NOT NULL" : "";
+                            try (Statement stmt = connection.createStatement()) {
+                                stmt.execute("ALTER TABLE " + table + " MODIFY " + colName + " VARCHAR(191)" + nullability);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Could not auto-modify MySQL column " + table + "." + colName + ": " + e.getMessage());
+            }
+        }
+    }
+
+    private PunishmentRecord mapPunishmentRow(ResultSet rs) throws SQLException {
+        String targetUuidRaw = rs.getString("target_uuid");
+        String issuerUuidRaw = rs.getString("issuer_uuid");
+        String removedByUuidRaw = rs.getString("removed_by_uuid");
+        long expiresAtValue = rs.getLong("expires_at");
+        boolean expiresAtWasNull = rs.wasNull();
+        long removedAtValue = rs.getLong("removed_at");
+        boolean removedAtWasNull = rs.wasNull();
+
+        return new PunishmentRecord(
+                rs.getLong("id"),
+                targetUuidRaw == null || targetUuidRaw.isBlank() ? null : UUID.fromString(targetUuidRaw),
+                rs.getString("target_name_snapshot"),
+                PunishmentType.fromString(rs.getString("type"), PunishmentType.WARN),
+                rs.getString("reason"),
+                issuerUuidRaw == null || issuerUuidRaw.isBlank() ? null : UUID.fromString(issuerUuidRaw),
+                rs.getString("issuer_name_snapshot"),
+                rs.getLong("issued_at"),
+                expiresAtWasNull ? null : expiresAtValue,
+                removedByUuidRaw == null || removedByUuidRaw.isBlank() ? null : UUID.fromString(removedByUuidRaw),
+                rs.getString("removed_by_name_snapshot"),
+                removedAtWasNull ? null : removedAtValue,
+                rs.getString("removal_reason"),
+                rs.getString("source_server"),
+                PunishmentScope.fromString(rs.getString("scope"), PunishmentScope.SERVER)
+        );
+    }
+
+    private FreezeState mapFreezeRow(ResultSet rs) throws SQLException {
+        String targetUuidRaw = rs.getString("target_uuid");
+        String frozenByUuidRaw = rs.getString("frozen_by_uuid");
+        return new FreezeState(
+                targetUuidRaw == null || targetUuidRaw.isBlank() ? null : UUID.fromString(targetUuidRaw),
+                rs.getString("target_name_snapshot"),
+                frozenByUuidRaw == null || frozenByUuidRaw.isBlank() ? null : UUID.fromString(frozenByUuidRaw),
+                rs.getString("frozen_by_name_snapshot"),
+                rs.getLong("frozen_at"),
+                rs.getString("source_server")
+        );
+    }
+
+    private StaffModeState mapStaffModeStateRow(ResultSet rs) throws SQLException {
+        String staffUuidRaw = rs.getString("staff_uuid");
+        return new StaffModeState(
+                staffUuidRaw == null || staffUuidRaw.isBlank() ? null : UUID.fromString(staffUuidRaw),
+                rs.getString("staff_name_snapshot"),
+                rs.getLong("enabled_at"),
+                rs.getString("source_server"),
+                rs.getInt("vanish_active") != 0,
+                rs.getInt("better_view_active") != 0,
+                rs.getInt("snapshot_present") != 0,
+                rs.getInt("previous_allow_flight") != 0,
+                rs.getInt("previous_flying") != 0,
+                rs.getInt("previous_selected_slot"),
+                rs.getInt("night_vision_owned") != 0,
+                parseGameMode(rs.getString("previous_game_mode"))
+        );
+    }
+
+    private void insertSnapshotItem(PreparedStatement insertStatement,
+                                    UUID staffUuid,
+                                    String section,
+                                    int slot,
+                                    ItemStack item) throws SQLException {
+        if (item == null || item.getType().isAir()) {
+            return;
+        }
+
+        insertStatement.setString(1, staffUuid.toString());
+        insertStatement.setString(2, section);
+        insertStatement.setInt(3, slot);
+        insertStatement.setString(4, serializeItemStack(item));
+        insertStatement.addBatch();
+    }
+
+    private GameMode parseGameMode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return GameMode.SURVIVAL;
+        }
+
+        try {
+            return GameMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            return GameMode.SURVIVAL;
+        }
+    }
+
+    private void appendPunishmentFilters(StringBuilder sql,
+                                         List<Object> parameters,
+                                         UUID targetUuid,
+                                         String targetName,
+                                         PunishmentQuery query,
+                                         long now) {
+        Set<String> uuids = new LinkedHashSet<>();
+        if (targetUuid != null) {
+            uuids.add(targetUuid.toString());
+        }
+        if (targetName != null && !targetName.isBlank()) {
+            try {
+                org.bukkit.OfflinePlayer offline = org.bukkit.Bukkit.getOfflinePlayer(targetName.trim());
+                if (offline != null && offline.getUniqueId() != null) {
+                    uuids.add(offline.getUniqueId().toString());
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        sql.append(" WHERE (");
+        boolean hasClause = false;
+        if (!uuids.isEmpty()) {
+            sql.append("target_uuid IN (");
+            int count = 0;
+            for (String uuidStr : uuids) {
+                if (count > 0) sql.append(", ");
+                sql.append("?");
+                parameters.add(uuidStr);
+                count++;
+            }
+            sql.append(")");
+            hasClause = true;
+        }
+
+        if (targetName != null && !targetName.isBlank()) {
+            if (hasClause) {
+                sql.append(" OR ");
+            }
+            sql.append("LOWER(target_name_snapshot) = LOWER(?)");
+            parameters.add(targetName.trim());
+            hasClause = true;
+        }
+
+        if (!hasClause) {
+            sql.append("1=0");
+        }
+        sql.append(")");
+
+        appendPunishmentQueryFilters(sql, parameters, query, now);
+    }
+
+    private void appendGlobalPunishmentFilters(StringBuilder sql,
+                                               List<Object> parameters,
+                                               String search,
+                                               PunishmentQuery query,
+                                               long now) {
+        String term = search == null ? "" : search.trim();
+        if (!term.isEmpty()) {
+            sql.append(" WHERE (LOWER(target_name_snapshot) LIKE LOWER(?) ESCAPE '!'");
+            parameters.add("%" + escapeLikeTerm(term) + "%");
+
+            UUID searchUuid = parseUuidOrNull(term);
+            if (searchUuid != null) {
+                sql.append(" OR target_uuid = ?");
+                parameters.add(searchUuid.toString());
+            }
+            sql.append(")");
+        } else {
+            sql.append(" WHERE 1=1");
+        }
+
+        appendPunishmentQueryFilters(sql, parameters, query, now);
+    }
+
+    private void appendPunishmentQueryFilters(StringBuilder sql,
+                                              List<Object> parameters,
+                                              PunishmentQuery query,
+                                              long now) {
+        if (query == null) {
+            return;
+        }
+
+        if (query.typeFilter() != null) {
+            sql.append(" AND type = ?");
+            parameters.add(query.typeFilter().name());
+        }
+
+        if (query.stateFilter() == PunishmentFilterState.ACTIVE) {
+            sql.append(" AND removed_at IS NULL AND (expires_at IS NULL OR expires_at > ?)");
+            parameters.add(now);
+        } else if (query.stateFilter() == PunishmentFilterState.INACTIVE) {
+            sql.append(" AND (removed_at IS NOT NULL OR (expires_at IS NOT NULL AND expires_at <= ?))");
+            parameters.add(now);
+        }
+    }
+
+    private static String escapeLikeTerm(String term) {
+        return term.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+    }
+
+    private static UUID parseUuidOrNull(String value) {
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private void bindParameters(PreparedStatement ps, List<Object> parameters) throws SQLException {
+        for (int index = 0; index < parameters.size(); index++) {
+            Object value = parameters.get(index);
+            int parameterIndex = index + 1;
+            if (value == null) {
+                ps.setObject(parameterIndex, null);
+            } else if (value instanceof String stringValue) {
+                ps.setString(parameterIndex, stringValue);
+            } else if (value instanceof Integer integerValue) {
+                ps.setInt(parameterIndex, integerValue);
+            } else if (value instanceof Long longValue) {
+                ps.setLong(parameterIndex, longValue);
+            } else if (value instanceof UUID uuidValue) {
+                ps.setString(parameterIndex, uuidValue.toString());
+            } else {
+                ps.setObject(parameterIndex, value);
+            }
+        }
+    }
+
+    private int countRows(String table) {
+        return countQuery("SELECT COUNT(*) FROM " + table);
+    }
+
+    private int countQuery(String sql) {
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to execute count query: " + sql, e);
+        }
+        return 0;
+    }
+
+    private int executeUpdate(String sql) {
+        try (Statement st = connection.createStatement()) {
+            return st.executeUpdate(sql);
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to execute update: " + sql, e);
+        }
+        return 0;
+    }
+
+    public ServerWipePreview previewServerWipe(Set<String> resetWorlds) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        counts.put("players", countTableIfExists("players"));
+        counts.put("homes", countTableIfExists("homes"));
+        counts.put("teams", countTableIfExists("teams"));
+        counts.put("bounties", countTableIfExists("bounties"));
+        counts.put("crate_keys", countTableIfExists("player_crate_keys"));
+        counts.put("ender_chests", countTableIfExists("ender_chest_profiles"));
+        counts.put("auctions", countTableIfExists("auction_listings") + countTableIfExists("auction_claims"));
+        counts.put("orders", countTableIfExists("orders")
+                + countTableIfExists("order_deliveries")
+                + countTableIfExists("order_claims"));
+        counts.put("duels", countTableIfExists("duel_stats")
+                + countTableIfExists("duel_matches")
+                + countTableIfExists("duel_claims"));
+        counts.put("ffa", countTableIfExists("ffa_stats") + countTableIfExists("ffa_matches"));
+        counts.put("spawners", countWorldRows("spawners", resetWorlds));
+        counts.put("crate_blocks", countWorldRows("crate_blocks", resetWorlds));
+        return new ServerWipePreview(Map.copyOf(counts));
+    }
+
+    public void writePortableBackup(Path outputFile) throws SQLException, IOException {
+        Objects.requireNonNull(outputFile, "outputFile");
+        Path parent = outputFile.toAbsolutePath().normalize().getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+
+        try (BufferedWriter writer = Files.newBufferedWriter(outputFile, StandardCharsets.UTF_8)) {
+            writer.write("-- UltimateDonutSmp server wipe backup");
+            writer.newLine();
+            writer.write("-- Database type: " + databaseType.name());
+            writer.newLine();
+            writer.write(isMySql() ? "SET FOREIGN_KEY_CHECKS=0;" : "PRAGMA foreign_keys=OFF;");
+            writer.newLine();
+            writer.newLine();
+
+            for (String table : listBackupTables()) {
+                String createSql = getBackupCreateSql(table);
+                if (createSql == null || createSql.isBlank()) {
+                    continue;
+                }
+
+                String quotedTable = quoteIdentifier(table);
+                writer.write("DROP TABLE IF EXISTS " + quotedTable + ";");
+                writer.newLine();
+                writer.write(stripTrailingSemicolon(createSql) + ";");
+                writer.newLine();
+
+                try (Statement statement = connection.createStatement();
+                     ResultSet rs = statement.executeQuery("SELECT * FROM " + quotedTable)) {
+                    ResultSetMetaData metadata = rs.getMetaData();
+                    int columnCount = metadata.getColumnCount();
+                    while (rs.next()) {
+                        StringJoiner columns = new StringJoiner(", ");
+                        StringJoiner values = new StringJoiner(", ");
+                        for (int index = 1; index <= columnCount; index++) {
+                            columns.add(quoteIdentifier(metadata.getColumnName(index)));
+                            values.add(toSqlLiteral(rs.getObject(index)));
+                        }
+                        writer.write("INSERT INTO " + quotedTable + " (" + columns + ") VALUES (" + values + ");");
+                        writer.newLine();
+                    }
+                }
+                writer.newLine();
+            }
+
+            writer.write(isMySql() ? "SET FOREIGN_KEY_CHECKS=1;" : "PRAGMA foreign_keys=ON;");
+            writer.newLine();
+        }
+    }
+
+    public ServerWipeResult resetForServerWipe(
+            double startingMoney,
+            Set<String> resetWorlds,
+            String wipeId
+    ) throws SQLException {
+        if (connection == null || connection.isClosed()) {
+            throw new SQLException("Database connection is not available.");
+        }
+
+        LinkedHashSet<String> normalizedWorlds = new LinkedHashSet<>();
+        if (resetWorlds != null) {
+            for (String world : resetWorlds) {
+                if (world != null && !world.isBlank()) {
+                    normalizedWorlds.add(world.toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+
+        Map<String, Integer> affected = new LinkedHashMap<>();
+        boolean autoCommitDisabled = false;
+        boolean originalAutoCommit = connection.getAutoCommit();
+        try {
+            connection.setAutoCommit(false);
+            autoCommitDisabled = true;
+            if (serverWipeTableExists("players")) {
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "UPDATE players SET " + wipeStatAssignments())) {
+                    bindWipeStatResets(statement, startingMoney);
+                    affected.put("players", statement.executeUpdate());
+                }
+            }
+
+            deleteWholeTable("player_crate_keys", "crate_keys", affected);
+            deleteWholeTable("ender_chest_items", "ender_chest_items", affected);
+            deleteWholeTable("ender_chest_profiles", "ender_chests", affected);
+            deleteWholeTable("homes", "homes", affected);
+            deleteWholeTable("team_members", "team_members", affected);
+            deleteWholeTable("teams", "teams", affected);
+            deleteWholeTable("bounties", "bounties", affected);
+            deleteWholeTable("sell_history", "sell_history", affected);
+            deleteWholeTable("sell_progress", "sell_progress", affected);
+
+            deleteWholeTable("auction_claims", "auction_claims", affected);
+            deleteWholeTable("auction_listings", "auctions", affected);
+            deleteWholeTable("order_claims", "order_claims", affected);
+            deleteWholeTable("order_deliveries", "order_deliveries", affected);
+            deleteWholeTable("orders", "orders", affected);
+
+            deleteWholeTable("duel_claims", "duel_claims", affected);
+            deleteWholeTable("duel_matches", "duel_matches", affected);
+            deleteWholeTable("duel_stats", "duel_stats", affected);
+            deleteWholeTable("ffa_matches", "ffa_matches", affected);
+            deleteWholeTable("ffa_stats", "ffa_stats", affected);
+
+            if (!normalizedWorlds.isEmpty()) {
+                if (serverWipeTableExists("spawner_loot") && serverWipeTableExists("spawners")) {
+                    String placeholders = String.join(",", Collections.nCopies(normalizedWorlds.size(), "?"));
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "DELETE FROM spawner_loot WHERE spawner_id IN "
+                                    + "(SELECT id FROM spawners WHERE LOWER(world) IN (" + placeholders + "))")) {
+                        bindWorldNames(statement, normalizedWorlds);
+                        affected.put("spawner_loot", statement.executeUpdate());
+                    }
+                }
+                deleteWorldRows("spawners", "spawners", normalizedWorlds, affected);
+                deleteWorldRows("crate_blocks", "crate_blocks", normalizedWorlds, affected);
+            }
+
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "REPLACE INTO server_wipe_commits (wipe_id, committed_at) VALUES (?, ?)")) {
+                statement.setString(1, wipeId);
+                statement.setLong(2, System.currentTimeMillis());
+                statement.executeUpdate();
+            }
+
+            connection.commit();
+            return new ServerWipeResult(Map.copyOf(affected));
+        } catch (SQLException exception) {
+            if (autoCommitDisabled) {
+                try {
+                    connection.rollback();
+                } catch (SQLException ignored) {
+                }
+            }
+            throw exception;
+        } finally {
+            if (autoCommitDisabled) {
+                try {
+                    connection.setAutoCommit(originalAutoCommit);
+                } catch (SQLException ignored) {
+                }
+            }
+        }
+    }
+
+    public boolean isServerWipeCommitted(String wipeId) {
+        if (wipeId == null || wipeId.isBlank() || connection == null) {
+            return false;
+        }
+        try {
+            if (!serverWipeTableExists("server_wipe_commits")) {
+                return false;
+            }
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT 1 FROM server_wipe_commits WHERE wipe_id = ?")) {
+                statement.setString(1, wipeId);
+                try (ResultSet rs = statement.executeQuery()) {
+                    return rs.next();
+                }
+            }
+        } catch (SQLException exception) {
+            plugin.getLogger().log(Level.WARNING, "Failed to inspect server wipe commit " + wipeId, exception);
+            return false;
+        }
+    }
+
+    private static final Map<String, List<String>> PLAYER_WIPE_TABLES = playerWipeTables();
+
+    private static Map<String, List<String>> playerWipeTables() {
+        Map<String, List<String>> tables = new LinkedHashMap<>();
+        tables.put("homes", List.of("player_uuid"));
+        tables.put("team_members", List.of("player_uuid"));
+        tables.put("ender_chest_items", List.of("player_uuid"));
+        tables.put("ender_chest_profiles", List.of("player_uuid"));
+        tables.put("player_crate_keys", List.of("player_uuid"));
+        tables.put("sell_history", List.of("player_uuid"));
+        tables.put("sell_progress", List.of("player_uuid"));
+        tables.put("sell_summary_players", List.of("player_uuid"));
+        tables.put("shop_favorites", List.of("player_uuid"));
+        tables.put("player_logs", List.of("player_uuid"));
+        tables.put("bounties", List.of("target_uuid", "placer_uuid"));
+        tables.put("player_friends", List.of("follower_uuid", "followed_uuid"));
+        tables.put("player_ignores", List.of("owner_uuid", "ignored_uuid"));
+        tables.put("auction_listings", List.of("seller_uuid"));
+        tables.put("auction_claims", List.of("owner_uuid"));
+        tables.put("player_auction_preferences", List.of("player_uuid"));
+        tables.put("orders", List.of("owner_uuid"));
+        tables.put("order_deliveries", List.of("deliverer_uuid"));
+        tables.put("order_claims", List.of("owner_uuid"));
+        tables.put("order_ui_preferences", List.of("player_uuid"));
+        tables.put("duel_stats", List.of("player_uuid"));
+        tables.put("duel_matches", List.of("player_one_uuid", "player_two_uuid"));
+        tables.put("duel_claims", List.of("player_uuid"));
+        tables.put("ffa_stats", List.of("player_uuid"));
+        tables.put("ffa_matches", List.of("player_one_uuid", "player_two_uuid"));
+        return Collections.unmodifiableMap(tables);
+    }
+
+    private static final Map<String, String> PLAYER_WIPE_GROUPS = playerWipeGroups();
+
+    private static final Map<String, Object> WIPE_STAT_RESETS = wipeStatResets();
+
+    /**
+     * The player columns a wipe resets, each beside the value it goes back to. Both wipes read this
+     * one map, and so do the backup and restore behind {@code /playerunwipe}, so a column added here
+     * cannot be reset by one wipe and missed by the other, or drop out of a backup and leave a
+     * restored player short. {@code money} is the exception: it is overwritten with the configured
+     * starting balance rather than the placeholder below.
+     */
+    private static Map<String, Object> wipeStatResets() {
+        Map<String, Object> resets = new LinkedHashMap<>();
+        resets.put("money", 0D);
+        resets.put("shards", 0);
+        resets.put("kills", 0);
+        resets.put("deaths", 0);
+        resets.put("playtime_seconds", 0);
+        resets.put("blocks_placed", 0);
+        resets.put("blocks_broken", 0);
+        resets.put("mobs_killed", 0);
+        resets.put("kill_streak", 0);
+        resets.put("highest_kill_streak", 0);
+        resets.put("money_spent", 0);
+        resets.put("money_made", 0);
+        resets.put("keyall_remaining_seconds", -1);
+        resets.put("shard_booster_expiry", 0);
+        resets.put("mob_spawn_disabled_until", 0);
+        resets.put("phantom_disabled_until", 0);
+        return Collections.unmodifiableMap(resets);
+    }
+
+    private static Map<String, String> playerWipeGroups() {
+        Map<String, String> groups = new LinkedHashMap<>();
+        groups.put("homes", "homes");
+        groups.put("team_members", "team");
+        groups.put("ender_chest_items", "ender_chest");
+        groups.put("ender_chest_profiles", "ender_chest");
+        groups.put("player_crate_keys", "crate_keys");
+        groups.put("sell_history", "sell_records");
+        groups.put("sell_progress", "sell_records");
+        groups.put("sell_summary_players", "sell_records");
+        groups.put("shop_favorites", "shop_favorites");
+        groups.put("player_logs", "logs");
+        groups.put("bounties", "bounties");
+        groups.put("player_friends", "friends");
+        groups.put("player_ignores", "ignores");
+        groups.put("auction_listings", "auctions");
+        groups.put("auction_claims", "auctions");
+        groups.put("player_auction_preferences", "auctions");
+        groups.put("orders", "orders");
+        groups.put("order_deliveries", "orders");
+        groups.put("order_claims", "orders");
+        groups.put("order_ui_preferences", "orders");
+        groups.put("duel_stats", "duels");
+        groups.put("duel_matches", "duels");
+        groups.put("duel_claims", "duels");
+        groups.put("ffa_stats", "ffa");
+        groups.put("ffa_matches", "ffa");
+        return Collections.unmodifiableMap(groups);
+    }
+
+    /**
+     * Counts everything a player wipe would clear for one player. Punishments, IP history and staff
+     * records are deliberately left out: they are moderation evidence rather than player progress.
+     */
+    public PlayerWipePreview previewPlayerWipe(UUID playerUuid) {
+        if (playerUuid == null) {
+            return new PlayerWipePreview(Map.of());
+        }
+
+        String uuid = playerUuid.toString();
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        counts.put("stats", countPlayerRows("players", List.of("uuid"), uuid));
+        for (Map.Entry<String, List<String>> entry : PLAYER_WIPE_TABLES.entrySet()) {
+            String group = PLAYER_WIPE_GROUPS.get(entry.getKey());
+            counts.merge(group, countPlayerRows(entry.getKey(), entry.getValue(), uuid), Integer::sum);
+        }
+        return new PlayerWipePreview(Map.copyOf(counts));
+    }
+
+    /**
+     * Clears one player's progress in a single transaction: their stored stats and balances go back
+     * to a fresh account, and every row they own in the per-player tables is deleted. Moderation
+     * records and world objects such as their spawners are left alone.
+     */
+    public PlayerWipeResult resetForPlayerWipe(UUID playerUuid, double startingMoney) throws SQLException {
+        Objects.requireNonNull(playerUuid, "playerUuid");
+        if (connection == null || connection.isClosed()) {
+            throw new SQLException("Database connection is not available.");
+        }
+
+        String uuid = playerUuid.toString();
+        Map<String, Integer> affected = new LinkedHashMap<>();
+        boolean autoCommitDisabled = false;
+        boolean originalAutoCommit = connection.getAutoCommit();
+        try {
+            connection.setAutoCommit(false);
+            autoCommitDisabled = true;
+
+            if (serverWipeTableExists("players")) {
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "UPDATE players SET " + wipeStatAssignments() + " WHERE uuid = ?")) {
+                    int index = bindWipeStatResets(statement, startingMoney);
+                    statement.setString(index, uuid);
+                    affected.put("stats", statement.executeUpdate());
+                }
+            }
+
+            for (Map.Entry<String, List<String>> entry : PLAYER_WIPE_TABLES.entrySet()) {
+                String group = PLAYER_WIPE_GROUPS.get(entry.getKey());
+                affected.merge(group, deletePlayerRows(entry.getKey(), entry.getValue(), uuid), Integer::sum);
+            }
+
+            connection.commit();
+            return new PlayerWipeResult(Map.copyOf(affected));
+        } catch (SQLException exception) {
+            if (autoCommitDisabled) {
+                try {
+                    connection.rollback();
+                } catch (SQLException ignored) {
+                }
+            }
+            throw exception;
+        } finally {
+            if (autoCommitDisabled) {
+                try {
+                    connection.setAutoCommit(originalAutoCommit);
+                } catch (SQLException ignored) {
+                }
+            }
+        }
+    }
+
+    /** The count group a player wipe prints one table's rows under, so callers can label a restore. */
+    public static String playerWipeGroup(String table) {
+        return PLAYER_WIPE_GROUPS.get(table);
+    }
+
+    /**
+     * Reads back every row a player wipe is about to delete, along with the player stats it is about
+     * to reset. Nothing is modified here: the caller writes the result to disk first, so a wipe that
+     * fails halfway leaves an unused backup rather than an unrecoverable player.
+     */
+    public PlayerWipeArchive capturePlayerWipeArchive(UUID playerUuid, String playerName, String actorName)
+            throws SQLException {
+        Objects.requireNonNull(playerUuid, "playerUuid");
+        if (connection == null || connection.isClosed()) {
+            throw new SQLException("Database connection is not available.");
+        }
+
+        String uuid = playerUuid.toString();
+        List<String> statColumns = List.copyOf(WIPE_STAT_RESETS.keySet());
+        List<Object> statValues = readPlayerStats(uuid, statColumns);
+
+        Map<String, PlayerWipeArchive.TableRows> tables = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : PLAYER_WIPE_TABLES.entrySet()) {
+            PlayerWipeArchive.TableRows rows = readPlayerRows(entry.getKey(), entry.getValue(), uuid);
+            if (rows != null && !rows.rows().isEmpty()) {
+                tables.put(entry.getKey(), rows);
+            }
+        }
+
+        return new PlayerWipeArchive(
+                playerUuid,
+                playerName,
+                System.currentTimeMillis(),
+                actorName,
+                statValues.isEmpty() ? List.of() : statColumns,
+                statValues,
+                tables
+        );
+    }
+
+    /**
+     * Puts an archived player back in a single transaction. Every table a wipe touches is cleared for
+     * them first, so they land on the state the backup holds instead of a merge of that and whatever
+     * they picked up since. Rows belonging to anybody else are never read or written.
+     */
+    public PlayerWipeResult restorePlayerWipeArchive(PlayerWipeArchive archive) throws SQLException {
+        Objects.requireNonNull(archive, "archive");
+        if (connection == null || connection.isClosed()) {
+            throw new SQLException("Database connection is not available.");
+        }
+
+        String uuid = archive.playerUuid().toString();
+        Map<String, Integer> affected = new LinkedHashMap<>();
+        boolean autoCommitDisabled = false;
+        boolean originalAutoCommit = connection.getAutoCommit();
+        try {
+            connection.setAutoCommit(false);
+            autoCommitDisabled = true;
+
+            if (archive.hasStats() && serverWipeTableExists("players")) {
+                affected.put("stats", restorePlayerStats(uuid, archive));
+            }
+
+            for (Map.Entry<String, List<String>> entry : PLAYER_WIPE_TABLES.entrySet()) {
+                String table = entry.getKey();
+                if (!serverWipeTableExists(table)) {
+                    continue;
+                }
+                deletePlayerRows(table, entry.getValue(), uuid);
+
+                PlayerWipeArchive.TableRows archived = archive.tables().get(table);
+                if (archived == null) {
+                    continue;
+                }
+                if ("team_members".equals(table)) {
+                    archived = withoutDisbandedTeams(archived);
+                }
+                affected.merge(PLAYER_WIPE_GROUPS.get(table), insertArchivedRows(table, archived), Integer::sum);
+            }
+
+            connection.commit();
+            return new PlayerWipeResult(Map.copyOf(affected));
+        } catch (SQLException exception) {
+            if (autoCommitDisabled) {
+                try {
+                    connection.rollback();
+                } catch (SQLException ignored) {
+                }
+            }
+            throw exception;
+        } finally {
+            if (autoCommitDisabled) {
+                try {
+                    connection.setAutoCommit(originalAutoCommit);
+                } catch (SQLException ignored) {
+                }
+            }
+        }
+    }
+
+    private List<Object> readPlayerStats(String uuid, List<String> columns) throws SQLException {
+        if (!serverWipeTableExists("players")) {
+            return List.of();
+        }
+
+        StringJoiner selected = new StringJoiner(", ");
+        for (String column : columns) {
+            selected.add(quoteIdentifier(column));
+        }
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT " + selected + " FROM players WHERE uuid = ?")) {
+            statement.setString(1, uuid);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) {
+                    return List.of();
+                }
+                List<Object> values = new ArrayList<>(columns.size());
+                for (int index = 1; index <= columns.size(); index++) {
+                    values.add(rs.getObject(index));
+                }
+                return values;
+            }
+        }
+    }
+
+    private PlayerWipeArchive.TableRows readPlayerRows(String table, List<String> owners, String uuid)
+            throws SQLException {
+        if (owners.isEmpty() || !serverWipeTableExists(table)) {
+            return null;
+        }
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT * FROM " + quoteIdentifier(table) + " WHERE " + ownerPredicate(owners))) {
+            bindOwnerUuid(statement, owners, uuid);
+            try (ResultSet rs = statement.executeQuery()) {
+                ResultSetMetaData metadata = rs.getMetaData();
+                int columnCount = metadata.getColumnCount();
+
+                List<String> columns = new ArrayList<>(columnCount);
+                for (int index = 1; index <= columnCount; index++) {
+                    columns.add(metadata.getColumnName(index));
+                }
+
+                List<List<Object>> rows = new ArrayList<>();
+                while (rs.next()) {
+                    List<Object> row = new ArrayList<>(columnCount);
+                    for (int index = 1; index <= columnCount; index++) {
+                        row.add(rs.getObject(index));
+                    }
+                    rows.add(row);
+                }
+                return new PlayerWipeArchive.TableRows(columns, rows);
+            }
+        }
+    }
+
+    private int restorePlayerStats(String uuid, PlayerWipeArchive archive) throws SQLException {
+        StringJoiner assignments = new StringJoiner(", ");
+        for (String column : archive.statColumns()) {
+            assignments.add(quoteIdentifier(column) + " = ?");
+        }
+        try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE players SET " + assignments + " WHERE uuid = ?")) {
+            List<Object> values = archive.statValues();
+            for (int index = 0; index < values.size(); index++) {
+                statement.setObject(index + 1, values.get(index));
+            }
+            statement.setString(values.size() + 1, uuid);
+            return statement.executeUpdate();
+        }
+    }
+
+    /**
+     * Drops archived team memberships whose team is gone. Wiping a team leader disbands the team, so
+     * restoring the row unchanged would leave the player holding the only membership of a team that
+     * no longer exists — and because that row owns their primary key, it would block them from ever
+     * joining another one.
+     */
+    private PlayerWipeArchive.TableRows withoutDisbandedTeams(PlayerWipeArchive.TableRows archived)
+            throws SQLException {
+        int nameIndex = archived.columns().indexOf("team_name");
+        if (nameIndex < 0 || !serverWipeTableExists("teams")) {
+            return archived;
+        }
+
+        List<List<Object>> kept = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement("SELECT 1 FROM teams WHERE name = ?")) {
+            for (List<Object> row : archived.rows()) {
+                Object teamName = row.get(nameIndex);
+                if (teamName == null) {
+                    continue;
+                }
+                statement.setString(1, String.valueOf(teamName));
+                try (ResultSet rs = statement.executeQuery()) {
+                    if (rs.next()) {
+                        kept.add(row);
+                    }
+                }
+            }
+        }
+        return new PlayerWipeArchive.TableRows(archived.columns(), kept);
+    }
+
+    private int insertArchivedRows(String table, PlayerWipeArchive.TableRows archived) throws SQLException {
+        if (archived.columns().isEmpty() || archived.rows().isEmpty()) {
+            return 0;
+        }
+
+        StringJoiner columns = new StringJoiner(", ");
+        StringJoiner placeholders = new StringJoiner(", ");
+        for (String column : archived.columns()) {
+            columns.add(quoteIdentifier(column));
+            placeholders.add("?");
+        }
+
+        int inserted = 0;
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO " + quoteIdentifier(table) + " (" + columns + ") VALUES (" + placeholders + ")")) {
+            for (List<Object> row : archived.rows()) {
+                for (int index = 0; index < row.size(); index++) {
+                    statement.setObject(index + 1, row.get(index));
+                }
+                inserted += statement.executeUpdate();
+            }
+        }
+        return inserted;
+    }
+
+    /** The {@code column = ?} list both wipes assign, in the order {@link #bindWipeStatResets} binds. */
+    private String wipeStatAssignments() {
+        StringJoiner assignments = new StringJoiner(", ");
+        for (String column : WIPE_STAT_RESETS.keySet()) {
+            assignments.add(quoteIdentifier(column) + " = ?");
+        }
+        return assignments.toString();
+    }
+
+    /**
+     * Binds every stat column back to the value a wipe resets it to, with {@code money} taking the
+     * configured starting balance. Returns the next free parameter index, which a player wipe uses
+     * for the {@code WHERE uuid = ?} a server wipe does not have.
+     */
+    private int bindWipeStatResets(PreparedStatement statement, double startingMoney) throws SQLException {
+        int index = 1;
+        for (Map.Entry<String, Object> reset : WIPE_STAT_RESETS.entrySet()) {
+            statement.setObject(index++, "money".equals(reset.getKey())
+                    ? Math.max(0D, startingMoney)
+                    : reset.getValue());
+        }
+        return index;
+    }
+
+    private int deletePlayerRows(String table, List<String> columns, String uuid) throws SQLException {
+        if (columns.isEmpty() || !serverWipeTableExists(table)) {
+            return 0;
+        }
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM " + quoteIdentifier(table) + " WHERE " + ownerPredicate(columns))) {
+            bindOwnerUuid(statement, columns, uuid);
+            return statement.executeUpdate();
+        }
+    }
+
+    private int countPlayerRows(String table, List<String> columns, String uuid) {
+        if (columns.isEmpty()) {
+            return 0;
+        }
+        try {
+            if (!serverWipeTableExists(table)) {
+                return 0;
+            }
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT COUNT(*) FROM " + quoteIdentifier(table) + " WHERE " + ownerPredicate(columns))) {
+                bindOwnerUuid(statement, columns, uuid);
+                try (ResultSet rs = statement.executeQuery()) {
+                    return rs.next() ? rs.getInt(1) : 0;
+                }
+            }
+        } catch (SQLException exception) {
+            plugin.getLogger().log(Level.WARNING, "Failed to count player wipe rows in " + table, exception);
+            return 0;
+        }
+    }
+
+    private String ownerPredicate(List<String> columns) {
+        StringJoiner predicate = new StringJoiner(" OR ");
+        for (String column : columns) {
+            predicate.add(quoteIdentifier(column) + " = ?");
+        }
+        return predicate.toString();
+    }
+
+    private void bindOwnerUuid(PreparedStatement statement, List<String> columns, String uuid) throws SQLException {
+        for (int index = 0; index < columns.size(); index++) {
+            statement.setString(index + 1, uuid);
+        }
+    }
+
+    private int countTableIfExists(String table) {
+        try {
+            return serverWipeTableExists(table) ? countQuery("SELECT COUNT(*) FROM " + quoteIdentifier(table)) : 0;
+        } catch (SQLException exception) {
+            plugin.getLogger().log(Level.WARNING, "Failed to inspect server wipe table " + table, exception);
+            return 0;
+        }
+    }
+
+    private int countWorldRows(String table, Set<String> worlds) {
+        if (worlds == null || worlds.isEmpty()) {
+            return 0;
+        }
+        try {
+            if (!serverWipeTableExists(table)) {
+                return 0;
+            }
+            LinkedHashSet<String> normalized = new LinkedHashSet<>();
+            for (String world : worlds) {
+                if (world != null && !world.isBlank()) {
+                    normalized.add(world.toLowerCase(Locale.ROOT));
+                }
+            }
+            if (normalized.isEmpty()) {
+                return 0;
+            }
+            String placeholders = String.join(",", Collections.nCopies(normalized.size(), "?"));
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT COUNT(*) FROM " + quoteIdentifier(table)
+                            + " WHERE LOWER(world) IN (" + placeholders + ")")) {
+                bindWorldNames(statement, normalized);
+                try (ResultSet rs = statement.executeQuery()) {
+                    return rs.next() ? rs.getInt(1) : 0;
+                }
+            }
+        } catch (SQLException exception) {
+            plugin.getLogger().log(Level.WARNING, "Failed to count reset-world rows in " + table, exception);
+            return 0;
+        }
+    }
+
+    private void deleteWholeTable(String table, String resultKey, Map<String, Integer> affected) throws SQLException {
+        if (!serverWipeTableExists(table)) {
+            return;
+        }
+        try (Statement statement = connection.createStatement()) {
+            affected.put(resultKey, statement.executeUpdate("DELETE FROM " + quoteIdentifier(table)));
+        }
+    }
+
+    private void deleteWorldRows(
+            String table,
+            String resultKey,
+            Collection<String> worlds,
+            Map<String, Integer> affected
+    ) throws SQLException {
+        if (!serverWipeTableExists(table) || worlds.isEmpty()) {
+            return;
+        }
+        String placeholders = String.join(",", Collections.nCopies(worlds.size(), "?"));
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM " + quoteIdentifier(table) + " WHERE LOWER(world) IN (" + placeholders + ")")) {
+            bindWorldNames(statement, worlds);
+            affected.put(resultKey, statement.executeUpdate());
+        }
+    }
+
+    private void bindWorldNames(PreparedStatement statement, Collection<String> worlds) throws SQLException {
+        int index = 1;
+        for (String world : worlds) {
+            statement.setString(index++, world.toLowerCase(Locale.ROOT));
+        }
+    }
+
+    private boolean serverWipeTableExists(String table) throws SQLException {
+        DatabaseMetaData metadata = connection.getMetaData();
+        String catalog = isMySql() ? connection.getCatalog() : null;
+        try (ResultSet rs = metadata.getTables(catalog, null, table, new String[]{"TABLE"})) {
+            if (rs.next()) {
+                return true;
+            }
+        }
+        try (ResultSet rs = metadata.getTables(catalog, null, table.toUpperCase(Locale.ROOT), new String[]{"TABLE"})) {
+            return rs.next();
+        }
+    }
+
+    private List<String> listBackupTables() throws SQLException {
+        List<String> tables = new ArrayList<>();
+        DatabaseMetaData metadata = connection.getMetaData();
+        String catalog = isMySql() ? connection.getCatalog() : null;
+        try (ResultSet rs = metadata.getTables(catalog, null, "%", new String[]{"TABLE"})) {
+            while (rs.next()) {
+                String table = rs.getString("TABLE_NAME");
+                if (table != null
+                        && isSafeIdentifier(table)
+                        && !table.startsWith("sqlite_")) {
+                    tables.add(table);
+                }
+            }
+        }
+        tables.sort(String.CASE_INSENSITIVE_ORDER);
+        return tables;
+    }
+
+    private String getBackupCreateSql(String table) throws SQLException {
+        if (isMySql()) {
+            try (Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("SHOW CREATE TABLE " + quoteIdentifier(table))) {
+                return rs.next() ? rs.getString(2) : null;
+            }
+        }
+
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")) {
+            statement.setString(1, table);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        }
+    }
+
+    private String quoteIdentifier(String identifier) {
+        if (!isSafeIdentifier(identifier)) {
+            throw new IllegalArgumentException("Unsafe SQL identifier: " + identifier);
+        }
+        return isMySql() ? "`" + identifier + "`" : "\"" + identifier + "\"";
+    }
+
+    private String stripTrailingSemicolon(String sql) {
+        String trimmed = sql == null ? "" : sql.trim();
+        return trimmed.endsWith(";") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
+    }
+
+    private String toSqlLiteral(Object value) {
+        if (value == null) {
+            return "NULL";
+        }
+        if (value instanceof Number) {
+            return value.toString();
+        }
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue ? "1" : "0";
+        }
+        if (value instanceof byte[] bytes) {
+            StringBuilder hex = new StringBuilder(bytes.length * 2);
+            for (byte current : bytes) {
+                hex.append(String.format("%02x", current & 0xff));
+            }
+            return "X'" + hex + "'";
+        }
+        return "'" + String.valueOf(value).replace("'", "''") + "'";
+    }
+
+    private String serializeItemStack(ItemStack item) {
+        try {
+            return ItemSerializationUtils.serialize(item);
+        } catch (java.io.IOException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to serialize Ender Chest item data", e);
+            return "";
+        }
+    }
+
+    private ItemStack deserializeItemStack(String encodedData) {
+        if (encodedData == null || encodedData.isBlank()) {
+            return null;
+        }
+
+        try {
+            return ItemSerializationUtils.deserialize(encodedData);
+        } catch (IllegalArgumentException | java.io.IOException | ClassNotFoundException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to deserialize Ender Chest item data", e);
+            return null;
+        }
+    }
+
+    private void importMongoSnapshotIntoSqlite() {
+        Set<String> collectionNames = new LinkedHashSet<>();
+        try (MongoCursor<String> cursor = mongoDatabase.listCollectionNames().iterator()) {
+            while (cursor.hasNext()) {
+                String collectionName = cursor.next();
+                if (isSafeIdentifier(collectionName) && !MONGO_SCHEMA_COLLECTION.equals(collectionName)) {
+                    collectionNames.add(collectionName);
+                }
+            }
+        }
+
+        if (collectionNames.isEmpty()) {
+            return;
+        }
+
+        try {
+            createTablesFromMongoSchema();
+            boolean autoCommitDisabled = false;
+            boolean originalAutoCommit = connection.getAutoCommit();
+            try {
+                connection.setAutoCommit(false);
+                autoCommitDisabled = true;
+                for (String table : collectionNames) {
+                    importMongoCollection(table);
+                }
+                connection.commit();
+            } catch (Exception e) {
+                if (autoCommitDisabled) {
+                    try {
+                        connection.rollback();
+                    } catch (SQLException ignored) {
+                    }
+                }
+                throw e;
+            } finally {
+                if (autoCommitDisabled) {
+                    try {
+                        connection.setAutoCommit(originalAutoCommit);
+                    } catch (SQLException ignored) {
+                    }
+                }
+            }
+            plugin.getLogger().info("Imported MongoDB snapshot into SQL runtime cache.");
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to import MongoDB snapshot; keeping local SQL cache", e);
+        }
+    }
+
+    private void createTablesFromMongoSchema() throws SQLException {
+        MongoCollection<Document> schemaCollection = mongoDatabase.getCollection(MONGO_SCHEMA_COLLECTION);
+        try (MongoCursor<Document> cursor = schemaCollection.find().iterator();
+             Statement statement = connection.createStatement()) {
+            while (cursor.hasNext()) {
+                Document schema = cursor.next();
+                String table = schema.getString("_id");
+                String createSql = schema.getString("create_sql");
+                if (!isSafeIdentifier(table) || createSql == null || createSql.isBlank() || tableExists(table)) {
+                    continue;
+                }
+                statement.execute(ensureCreateTableIfNotExists(createSql));
+            }
+        }
+    }
+
+    private void importMongoCollection(String table) throws SQLException {
+        if (!tableExists(table)) {
+            return;
+        }
+
+        List<String> columns = getSqliteTableColumns(table);
+        if (columns.isEmpty()) {
+            return;
+        }
+
+        try (Statement delete = connection.createStatement()) {
+            delete.executeUpdate("DELETE FROM " + table);
+        }
+
+        MongoCollection<Document> collection = mongoDatabase.getCollection(table);
+        try (MongoCursor<Document> cursor = collection.find().iterator()) {
+            while (cursor.hasNext()) {
+                Document document = cursor.next();
+                List<String> presentColumns = columns.stream()
+                        .filter(document::containsKey)
+                        .toList();
+                if (presentColumns.isEmpty()) {
+                    continue;
+                }
+
+                String placeholders = String.join(",", Collections.nCopies(presentColumns.size(), "?"));
+                String sql = "INSERT INTO " + table + " (" + String.join(",", presentColumns) + ") VALUES (" + placeholders + ")";
+                try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                    for (int index = 0; index < presentColumns.size(); index++) {
+                        Object value = document.get(presentColumns.get(index));
+                        if (value instanceof Boolean booleanValue) {
+                            ps.setInt(index + 1, booleanValue ? 1 : 0);
+                        } else {
+                            ps.setObject(index + 1, value);
+                        }
+                    }
+                    ps.executeUpdate();
+                }
+            }
+        }
+    }
+
+    private void exportSqliteSnapshotToMongo() throws SQLException {
+        MongoCollection<Document> schemaCollection = mongoDatabase.getCollection(MONGO_SCHEMA_COLLECTION);
+        for (String table : listSqliteTables()) {
+            String createSql = getCreateTableSql(table);
+            if (createSql != null && !createSql.isBlank()) {
+                Document schema = new Document("_id", table)
+                        .append("create_sql", createSql)
+                        .append("updated_at", System.currentTimeMillis());
+                schemaCollection.replaceOne(new Document("_id", table), schema, new ReplaceOptions().upsert(true));
+            }
+
+            List<Document> documents = readTableDocuments(table);
+            MongoCollection<Document> collection = mongoDatabase.getCollection(table);
+            collection.deleteMany(new Document());
+            if (!documents.isEmpty()) {
+                collection.insertMany(documents);
+            }
+        }
+    }
+
+    private List<Document> readTableDocuments(String table) throws SQLException {
+        List<Document> documents = new ArrayList<>();
+        List<String> primaryKeyColumns = getPrimaryKeyColumns(table);
+
+        try (Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT * FROM " + table)) {
+            ResultSetMetaData metaData = rs.getMetaData();
+            int columnCount = metaData.getColumnCount();
+            int rowIndex = 0;
+            while (rs.next()) {
+                Document document = new Document();
+                for (int index = 1; index <= columnCount; index++) {
+                    String columnName = metaData.getColumnName(index);
+                    document.append(columnName, rs.getObject(index));
+                }
+                document.append("_id", buildMongoDocumentId(table, document, primaryKeyColumns, rowIndex++));
+                documents.add(document);
+            }
+        }
+        return documents;
+    }
+
+    private String buildMongoDocumentId(String table, Document document, List<String> primaryKeyColumns, int rowIndex) {
+        if (primaryKeyColumns == null || primaryKeyColumns.isEmpty()) {
+            return table + ":" + rowIndex;
+        }
+
+        StringBuilder id = new StringBuilder(table);
+        for (String primaryKeyColumn : primaryKeyColumns) {
+            id.append(':').append(String.valueOf(document.get(primaryKeyColumn)));
+        }
+        return id.toString();
+    }
+
+    private List<String> listSqliteTables() throws SQLException {
+        List<String> tables = new ArrayList<>();
+        try (Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name ASC")) {
+            while (rs.next()) {
+                String table = rs.getString("name");
+                if (isSafeIdentifier(table)) {
+                    tables.add(table);
+                }
+            }
+        }
+        return tables;
+    }
+
+    private String getCreateTableSql(String table) throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")) {
+            ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("sql");
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean tableExists(String table) throws SQLException {
+        if (!isSafeIdentifier(table)) {
+            return false;
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")) {
+            ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private List<String> getSqliteTableColumns(String table) throws SQLException {
+        List<String> columns = new ArrayList<>();
+        if (!isSafeIdentifier(table)) {
+            return columns;
+        }
+
+        try (Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("PRAGMA table_info(" + table + ")")) {
+            while (rs.next()) {
+                String column = rs.getString("name");
+                if (isSafeIdentifier(column)) {
+                    columns.add(column);
+                }
+            }
+        }
+        return columns;
+    }
+
+    private List<String> getPrimaryKeyColumns(String table) throws SQLException {
+        Map<Integer, String> orderedColumns = new TreeMap<>();
+        if (!isSafeIdentifier(table)) {
+            return List.of();
+        }
+
+        try (Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("PRAGMA table_info(" + table + ")")) {
+            while (rs.next()) {
+                int order = rs.getInt("pk");
+                if (order > 0) {
+                    orderedColumns.put(order, rs.getString("name"));
+                }
+            }
+        }
+        return List.copyOf(orderedColumns.values());
+    }
+
+    private String ensureCreateTableIfNotExists(String createSql) {
+        String trimmed = createSql.trim();
+        if (trimmed.toUpperCase(Locale.ROOT).startsWith("CREATE TABLE IF NOT EXISTS")) {
+            return trimmed;
+        }
+        return trimmed.replaceFirst("(?i)^CREATE\\s+TABLE\\s+", "CREATE TABLE IF NOT EXISTS ");
+    }
+
+    private boolean isSafeIdentifier(String identifier) {
+        return identifier != null && identifier.matches("[A-Za-z_][A-Za-z0-9_]*");
+    }
+
+    public void close() {
+        flush();
+        if (asyncExecutor != null && !asyncExecutor.isShutdown()) {
+            asyncExecutor.shutdown();
+        }
+        try {
+            if (connection != null && !connection.isClosed()) {
+                connection.close();
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to close database", e);
+        }
+        if (hikariDataSource != null && !hikariDataSource.isClosed()) {
+            hikariDataSource.close();
+        }
+        if (mongoClient != null) {
+            try {
+                mongoClient.close();
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.WARNING, "Failed to close MongoDB client", e);
+            }
+        }
+    }
+
+    public void flush() {
+        if (!mongoBridgeActive || mongoDatabase == null || connection == null) {
+            return;
+        }
+
+        try {
+            exportSqliteSnapshotToMongo();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to sync SQL cache to MongoDB", e);
+        }
+    }
+
+    public DatabaseType getDatabaseType() {
+        return databaseType;
+    }
+
+    public Connection openDedicatedConnection() throws SQLException {
+        try {
+            return switch (databaseType) {
+                case MYSQL -> openDedicatedMySqlConnection();
+                case MONGODB -> openDedicatedSqliteConnection(
+                        resolveConfiguredFile("DATABASE.MONGODB.CACHE-FILE", "data/mongodb-cache.db")
+                );
+                case SQLITE -> openDedicatedSqliteConnection(
+                        resolveConfiguredFile("DATABASE.SQLITE.FILE", "data/data.db")
+                );
+            };
+        } catch (SQLException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new SQLException("Failed to open dedicated database connection", exception);
+        }
+    }
+
+    private Connection openDedicatedSqliteConnection(File dbFile) throws Exception {
+        Class.forName("org.sqlite.JDBC");
+        Files.createDirectories(dbFile.getParentFile().toPath());
+        Connection dedicated = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
+        try (Statement statement = dedicated.createStatement()) {
+            statement.execute("PRAGMA journal_mode=WAL");
+            statement.execute("PRAGMA synchronous=NORMAL");
+            statement.execute("PRAGMA busy_timeout=15000");
+        }
+        return dedicated;
+    }
+
+    private Connection openDedicatedMySqlConnection() throws Exception {
+        if (hikariDataSource != null) {
+            return hikariDataSource.getConnection();
+        }
+        
+        Class.forName("com.mysql.cj.jdbc.Driver");
+        FileConfiguration config = getDatabaseConfig();
+        String host = config.getString("DATABASE.MYSQL.HOST", "localhost");
+        int port = Math.max(1, Math.min(65535, config.getInt("DATABASE.MYSQL.PORT", 3306)));
+        String database = config.getString("DATABASE.MYSQL.DATABASE", "ultimatedonutsmp");
+        String username = config.getString("DATABASE.MYSQL.USERNAME", "root");
+        String password = config.getString("DATABASE.MYSQL.PASSWORD", "");
+        String parameters = config.getString(
+                "DATABASE.MYSQL.PARAMETERS",
+                "useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8"
+        );
+        String url = "jdbc:mysql://" + host + ":" + port + "/" + database + appendJdbcParameters(parameters);
+        return DriverManager.getConnection(url, username, password);
+    }
+
+    public boolean isMySql() {
+        return databaseType == DatabaseType.MYSQL;
+    }
+
+    public boolean isMongoDb() {
+        return databaseType == DatabaseType.MONGODB;
+    }
+
+    public void saveMaintenanceLocation(UUID uuid, String serverId, String world, double x, double y, double z, float yaw, float pitch) {
+        try {
+            try (PreparedStatement del = connection.prepareStatement("DELETE FROM maintenance_locations WHERE uuid = ? AND server_id = ?")) {
+                del.setString(1, uuid.toString());
+                del.setString(2, serverId);
+                del.executeUpdate();
+            }
+            try (PreparedStatement ins = connection.prepareStatement(
+                    "INSERT INTO maintenance_locations (uuid, server_id, world_name, x, y, z, yaw, pitch, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                ins.setString(1, uuid.toString());
+                ins.setString(2, serverId);
+                ins.setString(3, world);
+                ins.setDouble(4, x);
+                ins.setDouble(5, y);
+                ins.setDouble(6, z);
+                ins.setFloat(7, yaw);
+                ins.setFloat(8, pitch);
+                ins.setLong(9, System.currentTimeMillis());
+                ins.executeUpdate();
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to save maintenance location for " + uuid, e);
+        }
+    }
+
+    public Location getMaintenanceLocation(UUID uuid, String serverId) {
+        String sql = "SELECT world_name, x, y, z, yaw, pitch FROM maintenance_locations WHERE uuid = ? AND server_id = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            stmt.setString(2, serverId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    String worldName = rs.getString("world_name");
+                    double x = rs.getDouble("x");
+                    double y = rs.getDouble("y");
+                    double z = rs.getDouble("z");
+                    float yaw = rs.getFloat("yaw");
+                    float pitch = rs.getFloat("pitch");
+                    World world = Bukkit.getWorld(worldName);
+                    if (world != null) {
+                        return new Location(world, x, y, z, yaw, pitch);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to load maintenance location for " + uuid, e);
+        }
+        return null;
+    }
+
+    public void deleteMaintenanceLocation(UUID uuid, String serverId) {
+        String sql = "DELETE FROM maintenance_locations WHERE uuid = ? AND server_id = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            stmt.setString(2, serverId);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to delete maintenance location for " + uuid, e);
+        }
+    }
+
+    public void savePendingDuelReturn(UUID uuid, Location location) {
+        if (uuid == null || location == null || location.getWorld() == null) {
+            return;
+        }
+        try {
+            try (PreparedStatement del = connection.prepareStatement("DELETE FROM duel_pending_returns WHERE uuid = ?")) {
+                del.setString(1, uuid.toString());
+                del.executeUpdate();
+            }
+            try (PreparedStatement ins = connection.prepareStatement(
+                    "INSERT INTO duel_pending_returns (uuid, world_name, x, y, z, yaw, pitch, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+                ins.setString(1, uuid.toString());
+                ins.setString(2, location.getWorld().getName());
+                ins.setDouble(3, location.getX());
+                ins.setDouble(4, location.getY());
+                ins.setDouble(5, location.getZ());
+                ins.setFloat(6, location.getYaw());
+                ins.setFloat(7, location.getPitch());
+                ins.setLong(8, System.currentTimeMillis());
+                ins.executeUpdate();
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to save pending duel return for " + uuid, e);
+        }
+    }
+
+    public Location getPendingDuelReturn(UUID uuid) {
+        if (uuid == null) {
+            return null;
+        }
+        String sql = "SELECT world_name, x, y, z, yaw, pitch FROM duel_pending_returns WHERE uuid = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    String worldName = rs.getString("world_name");
+                    double x = rs.getDouble("x");
+                    double y = rs.getDouble("y");
+                    double z = rs.getDouble("z");
+                    float yaw = rs.getFloat("yaw");
+                    float pitch = rs.getFloat("pitch");
+                    World world = Bukkit.getWorld(worldName);
+                    if (world != null) {
+                        return new Location(world, x, y, z, yaw, pitch);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to load pending duel return for " + uuid, e);
+        }
+        return null;
+    }
+
+    public void deletePendingDuelReturn(UUID uuid) {
+        if (uuid == null) {
+            return;
+        }
+        String sql = "DELETE FROM duel_pending_returns WHERE uuid = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to delete pending duel return for " + uuid, e);
+        }
+    }
+
+    public Map<UUID, Location> getAllPendingDuelReturns() {
+        Map<UUID, Location> result = new HashMap<>();
+        String sql = "SELECT uuid, world_name, x, y, z, yaw, pitch FROM duel_pending_returns";
+        try (PreparedStatement stmt = connection.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                try {
+                    UUID uuid = UUID.fromString(rs.getString("uuid"));
+                    String worldName = rs.getString("world_name");
+                    double x = rs.getDouble("x");
+                    double y = rs.getDouble("y");
+                    double z = rs.getDouble("z");
+                    float yaw = rs.getFloat("yaw");
+                    float pitch = rs.getFloat("pitch");
+                    World world = Bukkit.getWorld(worldName);
+                    Location loc = world != null ? new Location(world, x, y, z, yaw, pitch) : null;
+                    if (loc != null) {
+                        result.put(uuid, loc);
+                    }
+                } catch (IllegalArgumentException ignored) {}
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to load all pending duel returns", e);
+        }
+        return result;
+    }
+
+    public List<UUID> getMaintenancePlayers(String serverId) {
+        List<UUID> list = new ArrayList<>();
+        String sql = "SELECT uuid FROM maintenance_locations WHERE server_id = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, serverId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    try {
+                        list.add(UUID.fromString(rs.getString("uuid")));
+                    } catch (IllegalArgumentException ignored) {}
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to load maintenance players for server " + serverId, e);
+        }
+        return list;
+    }
+
+    public Connection getConnection() {
+        try {
+            if (hikariDataSource != null && (rawConnection == null || rawConnection.isClosed())) {
+                rawConnection = hikariDataSource.getConnection();
+                connection = wrapConnection(rawConnection);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to refresh MySQL connection from pool", e);
+        }
+        return connection;
+    }
+
+    public void executeAsync(Runnable task) {
+        if (asyncExecutor != null && !asyncExecutor.isShutdown()) {
+            asyncExecutor.submit(() -> {
+                try {
+                    task.run();
+                } catch (Exception e) {
+                    plugin.getLogger().log(Level.WARNING, "Error executing async database task", e);
+                }
+            });
+        }
+    }
+
+    public void savePlayerAsync(PlayerData data) {
+        executeAsync(() -> savePlayer(data));
+    }
+
+    public void savePlayerIpAddressAsync(UUID playerUuid, String ipAddress, long seenAt) {
+        executeAsync(() -> savePlayerIpAddress(playerUuid, ipAddress, seenAt));
+    }
+
+    private Connection wrapConnection(Connection target) {
+        if (target == null) {
+            return null;
+        }
+        return (Connection) java.lang.reflect.Proxy.newProxyInstance(
+                Connection.class.getClassLoader(),
+                new Class<?>[]{Connection.class},
+                new ThreadSafeConnectionHandler(target)
+        );
+    }
+
+    private static class ThreadSafeConnectionHandler implements java.lang.reflect.InvocationHandler {
+        private final Connection target;
+        private final Object lock = new Object();
+        private Thread transactionOwner = null;
+        private long transactionStartTime = 0L;
+
+        public ThreadSafeConnectionHandler(Connection target) {
+            this.target = target;
+        }
+
+        @Override
+        public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) throws Throwable {
+            String methodName = method.getName();
+
+            synchronized (lock) {
+                if (transactionOwner != null) {
+                    if (!transactionOwner.isAlive() || (System.currentTimeMillis() - transactionStartTime > 15000L)) {
+                        try {
+                            target.rollback();
+                            target.setAutoCommit(true);
+                        } catch (Throwable ignored) {}
+                        transactionOwner = null;
+                        transactionStartTime = 0L;
+                        lock.notifyAll();
+                    }
+                }
+
+                while (transactionOwner != null && transactionOwner != Thread.currentThread()) {
+                    long elapsedOnOwner = System.currentTimeMillis() - transactionStartTime;
+                    long maxRemainingForOwner = 15000L - elapsedOnOwner;
+                    if (maxRemainingForOwner <= 0 || !transactionOwner.isAlive()) {
+                        try {
+                            target.rollback();
+                            target.setAutoCommit(true);
+                        } catch (Throwable ignored) {}
+                        transactionOwner = null;
+                        transactionStartTime = 0L;
+                        lock.notifyAll();
+                        break;
+                    }
+
+                    long waitTime = Math.min(1000L, Math.max(10L, maxRemainingForOwner));
+                    try {
+                        lock.wait(waitTime);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new SQLException("Thread interrupted while waiting for database lock", e);
+                    }
+                }
+
+                if (methodName.equals("setAutoCommit") && args != null && args.length == 1 && args[0] instanceof Boolean) {
+                    boolean autoCommit = (Boolean) args[0];
+                    if (!autoCommit) {
+                        transactionOwner = Thread.currentThread();
+                        transactionStartTime = System.currentTimeMillis();
+                    } else {
+                        transactionOwner = null;
+                        transactionStartTime = 0L;
+                        lock.notifyAll();
+                    }
+                } else if (methodName.equals("commit") || methodName.equals("rollback") || methodName.equals("close")) {
+                    transactionOwner = null;
+                    transactionStartTime = 0L;
+                    lock.notifyAll();
+                }
+
+                try {
+                    return method.invoke(target, args);
+                } catch (java.lang.reflect.InvocationTargetException e) {
+                    if (transactionOwner == Thread.currentThread()) {
+                        if (methodName.equals("setAutoCommit") || methodName.equals("rollback") || methodName.equals("close")) {
+                            transactionOwner = null;
+                            transactionStartTime = 0L;
+                            lock.notifyAll();
+                        }
+                    }
+                    throw e.getCause();
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,25 @@
+name: GhanaRealmsPaystack
+version: '${project.version}'
+main: com.ghanarealms.paystack.GhanaRealmsPaystack
+api-version: '1.21'
+author: GhanaRealms
+description: Paystack checkout, webhook verification, and package delivery for GhanaRealms
+softdepend: [Vault]
+
+commands:
+  buy:
+    description: Open the GhanaRealms store and generate a Paystack checkout link
+    usage: /buy [package]
+    permission: ghanarealmspaystack.buy
+  paystack:
+    description: Admin commands - verify transactions, reload config, view purchase history
+    usage: /paystack <verify|reload|history|packages> [args]
+    permission: ghanarealmspaystack.admin
+
+permissions:
+  ghanarealmspaystack.buy:
+    description: Allows using /buy
+    default: true
+  ghanarealmspaystack.admin:
+    description: Allows managing GhanaRealmsPaystack
+    default: op

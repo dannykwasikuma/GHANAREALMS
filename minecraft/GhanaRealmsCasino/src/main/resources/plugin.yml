@@ -1,0 +1,24 @@
+name: GhanaRealmsCasino
+version: '${project.version}'
+main: com.ghanarealms.casino.GhanaRealmsCasino
+api-version: '1.21'
+author: GhanaRealms
+description: Original GhanaRealms wagering games - Oware and Cedi Toss (no code borrowed from any audited repository)
+softdepend: [Vault]
+
+commands:
+  oware:
+    description: Challenge another player to a wagered game of Oware
+    usage: /oware <challenge|accept|decline|forfeit> [player] [amount]
+    permission: ghanarealmscasino.oware
+  cedistoss:
+    aliases: [cointoss, cedi]
+    description: Challenge another player to a coin-toss wager
+    usage: /cedistoss <challenge|accept> <player> [amount]
+    permission: ghanarealmscasino.cedistoss
+
+permissions:
+  ghanarealmscasino.oware:
+    default: true
+  ghanarealmscasino.cedistoss:
+    default: true

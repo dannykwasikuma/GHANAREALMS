@@ -34,23 +34,22 @@ export async function POST(req: NextRequest) {
 
   const client = await pool.connect();
   try {
-    // Record the event first, using the UNIQUE(paystack_reference, event_type)
-    // constraint as the real idempotency guard - if this insert fails on
-    // conflict, we've already processed this exact event and stop here.
-    let insertedEvent;
-    try {
-      insertedEvent = await client.query(
-        `INSERT INTO payment_events (paystack_reference, event_type, raw_payload)
-         VALUES ($1, $2, $3) RETURNING id`,
-        [reference, eventType, payload]
-      );
-    } catch (err: any) {
-      if (err.code === '23505') {
-        // unique_violation - duplicate webhook delivery, expected from Paystack retries
-        console.log(`Duplicate webhook for ${reference}/${eventType} - ignoring`);
-        return NextResponse.json({ received: true });
-      }
-      throw err;
+    // Record the event (UNIQUE(reference,event_type)). An event is only
+    // skipped if it was already FULLY processed; a row left unprocessed by a
+    // failed attempt is re-processed on the next Paystack retry.
+    await client.query(
+      `INSERT INTO payment_events (paystack_reference, event_type, raw_payload)
+       VALUES ($1, $2, $3) ON CONFLICT (paystack_reference, event_type) DO NOTHING`,
+      [reference, eventType, payload]
+    );
+    const ev = await client.query(
+      'SELECT id, processed FROM payment_events WHERE paystack_reference = $1 AND event_type = $2',
+      [reference, eventType]
+    );
+    const insertedEvent = { rows: [ev.rows[0]] };
+    if (ev.rows[0].processed) {
+      console.log(`Duplicate webhook for ${reference}/${eventType} - already processed`);
+      return NextResponse.json({ received: true });
     }
 
     if (eventType !== 'charge.success') {
@@ -78,13 +77,15 @@ export async function POST(req: NextRequest) {
     if (paymentRow.status === 'PAID') {
       // Already processed via another path (e.g. the callback page's own
       // verify call racing this webhook) - stop here, do not deliver twice.
-      await client.query('ROLLBACK');
+      await client.query('UPDATE payment_events SET processed = true WHERE id = $1', [insertedEvent.rows[0].id]);
+      await client.query('COMMIT');
       return NextResponse.json({ received: true });
     }
 
     if (!verification.ok || verification.status !== 'success') {
       await client.query(`UPDATE payments SET status = 'FAILED' WHERE id = $1`, [paymentRow.id]);
       await closePendingOrder(client, paymentRow.order_id, 'FAILED'); // also releases reserved stock
+      await client.query('UPDATE payment_events SET processed = true WHERE id = $1', [insertedEvent.rows[0].id]);
       await client.query('COMMIT');
       return NextResponse.json({ received: true });
     }
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
         `got ${verification.amountPesewas} ${verification.currency} - NOT delivering, needs manual review`
       );
       await client.query(`UPDATE payments SET status = 'FAILED' WHERE id = $1`, [paymentRow.id]);
+      await client.query('UPDATE payment_events SET processed = true WHERE id = $1', [insertedEvent.rows[0].id]);
       await client.query('COMMIT');
       return NextResponse.json({ received: true });
     }
@@ -134,7 +136,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (err) {
-    await client.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch {}
     console.error('Webhook processing failed:', err);
     // Still return 200 - per Paystack's guidance, a 5xx here causes retries
     // which is fine, but we've logged the error either way. Returning 500

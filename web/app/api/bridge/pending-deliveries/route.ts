@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { pool, query } from '@/lib/db';
 import { verifyBridgeSecret } from '@/lib/orders';
 
 /**
@@ -20,6 +20,35 @@ export async function GET(req: NextRequest) {
   if (!verifyBridgeSecret(secret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Atomically claim up to 100 rows (lease = 5 min). SKIP LOCKED means two
+  // concurrent pollers never receive the same delivery; a crashed poller's
+  // rows become claimable again once the lease expires.
+  const claimClient = await pool.connect();
+  let ids: string[] = [];
+  try {
+    await claimClient.query('BEGIN');
+    const claimed = await claimClient.query(
+      `WITH c AS (
+         SELECT id FROM delivery_queue
+         WHERE status IN ('PENDING','RETRYING')
+            OR (status = 'PROCESSING' AND claimed_at < now() - interval '5 minutes')
+         ORDER BY created_at
+         LIMIT 100
+         FOR UPDATE SKIP LOCKED)
+       UPDATE delivery_queue dq SET status='PROCESSING', claimed_at=now(), updated_at=now()
+       FROM c WHERE dq.id = c.id RETURNING dq.id`
+    );
+    await claimClient.query('COMMIT');
+    ids = claimed.rows.map((r) => r.id);
+  } catch (err) {
+    await claimClient.query('ROLLBACK');
+    console.error('claim failed:', err);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  } finally {
+    claimClient.release();
+  }
+  if (ids.length === 0) return NextResponse.json({ deliveries: [] });
 
   const rows = await query<{
     delivery_id: string;
@@ -46,7 +75,7 @@ export async function GET(req: NextRequest) {
      JOIN minecraft_players mp ON mp.id = dq.minecraft_player_id
      JOIN order_items oi ON oi.id = dq.order_item_id
      JOIN products p ON p.id = oi.product_id
-     WHERE dq.status IN ('PENDING', 'RETRYING') AND dq.order_item_id IS NOT NULL
+     WHERE dq.id = ANY($1::uuid[]) AND dq.order_item_id IS NOT NULL
 
      UNION ALL
 
@@ -64,10 +93,11 @@ export async function GET(req: NextRequest) {
      JOIN minecraft_players mp ON mp.id = dq.minecraft_player_id
      JOIN clan_vote_rewards r ON r.id = dq.clan_vote_reward_id
      JOIN clan_reward_tiers t ON t.id = r.tier_id
-     WHERE dq.status IN ('PENDING', 'RETRYING') AND dq.clan_vote_reward_id IS NOT NULL
+     WHERE dq.id = ANY($1::uuid[]) AND dq.clan_vote_reward_id IS NOT NULL
 
      ORDER BY delivery_id ASC
-     LIMIT 100`
+     LIMIT 100`,
+    [ids]
   );
 
   return NextResponse.json({ deliveries: rows });

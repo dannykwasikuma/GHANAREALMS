@@ -1,0 +1,79 @@
+name: Build Jar
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Two merges landing close together used to race each other for the nightly tag. The tag push is a
+# plain force push with no compare-and-swap, so whichever run finished last won, and the loser died
+# with "cannot lock ref". A slower older run winning would have moved v1.5-pre backwards and
+# published the older jar over the newer one. Cancelling the older run leaves the newest commit on
+# main as the only one that reaches the tag and release steps.
+concurrency:
+  group: build-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+          cache: 'maven'
+
+      - name: Build Project
+        run: mvn clean package
+
+      - name: Get Project Version
+        id: metadata
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Upload Shaded Jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: UltimateDonutSmp-${{ steps.metadata.outputs.version }}
+          path: target/UltimateDonutSmp-*.jar
+          if-no-files-found: error
+
+      - name: Update Nightly Tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git tag -f "v${{ steps.metadata.outputs.version }}-pre"
+          git push -f origin "v${{ steps.metadata.outputs.version }}-pre"
+
+      - name: Release Nightly Build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: "v${{ steps.metadata.outputs.version }}-pre"
+          name: "UltimateDonutSMP v${{ steps.metadata.outputs.version }}-pre (nightly)"
+          body: |
+            ### UltimateDonutSMP v${{ steps.metadata.outputs.version }}-pre
+            This is an automated pre-release build, updated in place on every push to `main`.
+
+            - **Commit:** ${{ github.sha }}
+            - **Branch:** ${{ github.ref_name }}
+            - **Build Date:** ${{ github.event.head_commit.timestamp }}
+            - **Build:** #${{ github.run_number }}
+          prerelease: true
+          files: target/UltimateDonutSmp-${{ steps.metadata.outputs.version }}.jar
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

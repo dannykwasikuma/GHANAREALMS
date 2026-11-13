@@ -1,0 +1,191 @@
+package com.bx.ultimateDonutSmp.managers;
+
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.junit.jupiter.api.Test;
+
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class PlayerSettingsConfigurationTest {
+
+    private static final List<String> REQUIRED_SETTINGS = List.of(
+            "PUBLIC_CHAT",
+            "PRIVATE_MESSAGES",
+            "SERVER_BROADCASTS",
+            "HOTBAR_MESSAGES",
+            "PAY_ALERTS",
+            "BOUNTY_ALERTS",
+            "AUCTION_NOTIFICATIONS",
+            "FAST_CRYSTALS",
+            "EXPLOSION_PARTICLES",
+            "QUICK_AUCTION_PURCHASE",
+            "CHAINMAIL_ON_RESPAWN",
+            "DISABLE_MOB_SPAWN",
+            "NOTIFICATION_SOUNDS",
+            "ORDER_NOTIFICATIONS",
+            "DUEL_REQUESTS",
+            "TPA_REQUESTS",
+            "PAYMENTS",
+            "TEAM_CHAT_VISIBILITY",
+            "WORTH_DISPLAY",
+            "MONEY_NAMETAGS",
+            "DESTROY_PEARL_ON_DEATH",
+            "RANDOMIZED_COORDS",
+            "DEATH_MESSAGES",
+            "ADVANCEMENT_MESSAGES",
+            "JOIN_LEAVE_MESSAGES",
+            "TELEPORT_ALERTS",
+            "RTP_COORDINATES",
+            "FOLLOW_ALERT_SETTINGS",
+            "EXPLOSION_SOUNDS",
+            "DISPLAY_DONUT_PLUS",
+            "QUICK_AUCTION_SELL",
+            "SCOREBOARD_VISIBILITY",
+            "SHOW_MONEY",
+            "SHOW_SHARDS",
+            "SHOW_KILLS",
+            "SHOW_DEATHS",
+            "SHOW_PLAYTIME",
+            "COMBAT_TIMER",
+            "TEAM_INVITES",
+            "DUEL_MUSIC",
+            "CLEAR_ENTITIES_MESSAGES",
+            "HIDE_ALL_PLAYERS",
+            "TOTEM_PARTICLES",
+            "QUIET_SPAWN"
+    );
+
+    @Test
+    void settingsMenuContainsEveryRequestedSettingInUniqueValidSlots() throws Exception {
+        YamlConfiguration menus = load("menus.yml");
+        assertEquals(54, menus.getInt("SETTINGS-MENU.SIZE"));
+
+        ConfigurationSection buttons = menus.getConfigurationSection("SETTINGS-MENU.BUTTONS");
+        assertNotNull(buttons);
+
+        Set<Integer> usedSlots = new HashSet<>();
+        for (String key : buttons.getKeys(false)) {
+            assertFalse(key.startsWith("HEADER_"), key + " must not render a category header");
+            int slot = buttons.getInt(key + ".SLOT", -1);
+            assertTrue(slot >= 0 && slot < 54, key + " has invalid slot " + slot);
+            assertTrue(usedSlots.add(slot), key + " duplicates slot " + slot);
+        }
+
+        for (String setting : REQUIRED_SETTINGS) {
+            assertTrue(buttons.isConfigurationSection(setting), setting);
+        }
+
+        // One theme per row, left aligned, mirroring the reference menu the layout follows:
+        // chat, alerts, gameplay and display, who may reach you, the scoreboard, the world.
+        Map<String, Integer> groupedSlots = Map.ofEntries(
+                Map.entry("PUBLIC_CHAT", 0),
+                Map.entry("PRIVATE_MESSAGES", 1),
+                Map.entry("SERVER_BROADCASTS", 2),
+                Map.entry("HOTBAR_MESSAGES", 3),
+                Map.entry("DEATH_MESSAGES", 4),
+                Map.entry("ADVANCEMENT_MESSAGES", 5),
+                Map.entry("JOIN_LEAVE_MESSAGES", 6),
+                Map.entry("TEAM_CHAT_VISIBILITY", 7),
+                Map.entry("AMETHYST_BREAK_MESSAGES", 8),
+                Map.entry("PAY_ALERTS", 9),
+                Map.entry("TELEPORT_ALERTS", 10),
+                Map.entry("BOUNTY_ALERTS", 11),
+                Map.entry("AUCTION_NOTIFICATIONS", 12),
+                Map.entry("ORDER_NOTIFICATIONS", 13),
+                Map.entry("NOTIFICATION_SOUNDS", 14),
+                Map.entry("FOLLOW_ALERT_SETTINGS", 15),
+                Map.entry("KEY_ALL_NOTIFICATIONS", 16),
+                Map.entry("RTP_COORDINATES", 17),
+                Map.entry("FAST_CRYSTALS", 18),
+                Map.entry("CHAINMAIL_ON_RESPAWN", 19),
+                Map.entry("EXPLOSION_PARTICLES", 20),
+                Map.entry("EXPLOSION_SOUNDS", 21),
+                Map.entry("COMBAT_TIMER", 22),
+                Map.entry("DISPLAY_DONUT_PLUS", 23),
+                Map.entry("MONEY_NAMETAGS", 24),
+                Map.entry("WORTH_DISPLAY", 25),
+                Map.entry("TPA_CONFIRM_MENUS", 26),
+                Map.entry("TPA_REQUESTS", 27),
+                Map.entry("TPA_HERE_REQUESTS", 28),
+                Map.entry("PAYMENTS", 29),
+                Map.entry("RANDOMIZED_COORDS", 30),
+                Map.entry("DUEL_REQUESTS", 31),
+                Map.entry("PAY_CONFIRM_MENUS", 32),
+                Map.entry("AUTO_CONFIRM_TPAS", 33),
+                Map.entry("TEAM_INVITES", 34),
+                Map.entry("DUEL_MUSIC", 35),
+                Map.entry("SCOREBOARD_VISIBILITY", 36),
+                Map.entry("SHOW_MONEY", 37),
+                Map.entry("SHOW_SHARDS", 38),
+                Map.entry("SHOW_KILLS", 39),
+                Map.entry("SHOW_DEATHS", 40),
+                Map.entry("SHOW_PLAYTIME", 41),
+                Map.entry("CLEAR_ENTITIES_MESSAGES", 42),
+                Map.entry("QUICK_AUCTION_PURCHASE", 45),
+                Map.entry("QUICK_AUCTION_SELL", 46),
+                Map.entry("DISABLE_MOB_SPAWN", 47),
+                Map.entry("DISABLE_PHANTOM_SPAWN", 48),
+                Map.entry("NIGHT_VISION", 49),
+                Map.entry("DESTROY_PEARL_ON_DEATH", 50),
+                Map.entry("HIDE_ALL_PLAYERS", 51),
+                Map.entry("TOTEM_PARTICLES", 52),
+                Map.entry("QUIET_SPAWN", 53)
+        );
+        groupedSlots.forEach((key, slot) ->
+                assertEquals(slot, buttons.getInt(key + ".SLOT"), key));
+        assertEquals(groupedSlots.size(), buttons.getKeys(false).size(),
+                "every button belongs to one of the six groups");
+    }
+
+    @Test
+    void noRowOfTheSettingsMenuRepeatsAnIcon() throws Exception {
+        YamlConfiguration menus = load("menus.yml");
+        ConfigurationSection buttons = menus.getConfigurationSection("SETTINGS-MENU.BUTTONS");
+        assertNotNull(buttons);
+
+        // Icons repeat between rows, the same way the reference menu reuses ender pearls and
+        // gold ingots. Two buttons sitting side by side under the same icon is the unreadable case.
+        Map<Integer, Map<String, String>> rows = new HashMap<>();
+        for (String key : buttons.getKeys(false)) {
+            String material = buttons.getString(key + ".MATERIAL");
+            assertNotNull(material, key);
+            int row = buttons.getInt(key + ".SLOT") / 9;
+            String previous = rows.computeIfAbsent(row, r -> new HashMap<>()).put(material, key);
+            assertNull(previous, key + " repeats the " + material + " icon of " + previous
+                    + " on row " + row);
+        }
+    }
+
+    @Test
+    void hiddenRtpTemplatesNeverExposeCoordinates() throws Exception {
+        YamlConfiguration rtp = load("rtp.yml");
+
+        for (String path : List.of(
+                "MESSAGES.SAFE-LOCATION-FOUND-HIDDEN",
+                "MESSAGES.SEARCH-FOUND-ACTIONBAR-HIDDEN"
+        )) {
+            String message = rtp.getString(path);
+            assertNotNull(message, path);
+            assertFalse(message.contains("{x}"), path);
+            assertFalse(message.contains("{y}"), path);
+            assertFalse(message.contains("{z}"), path);
+        }
+    }
+
+    private static YamlConfiguration load(String fileName) throws Exception {
+        YamlConfiguration configuration = new YamlConfiguration();
+        configuration.load(Path.of("src/main/resources", fileName).toFile());
+        return configuration;
+    }
+}

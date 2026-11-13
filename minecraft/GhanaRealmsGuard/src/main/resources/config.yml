@@ -1,0 +1,43 @@
+# ==============================================================================
+# GhanaRealmsGuard - basic movement-sanity checks, NOT anticheat-grade
+# ==============================================================================
+# These thresholds are deliberately generous to avoid false-positiving
+# legitimate players (speed potions, jump boost, knockback, lag spikes all
+# affect real movement). This catches blatant, unsophisticated cases -
+# nothing here does movement prediction or packet-level analysis, so anyone
+# using an actual cheat client with basic legit-movement simulation will
+# not be caught by this. Get Grim or Vulcan for real protection.
+
+GENERAL:
+  # If true, flags are only logged/alerted to staff - nothing is ever
+  # auto-punished. Left true by default: auto-kicking on a check this
+  # simple risks kicking real players over lag or effects, which is worse
+  # than letting an obvious cheater go unflagged for a few more seconds.
+  ALERT-ONLY: true
+  AUTO-KICK-AFTER-FLAGS: 10
+
+SPEED:
+  ENABLED: true
+  # Blocks per second, horizontal, sustained. Vanilla sprint-jump with no
+  # effects tops out around 7-8; this allows real headroom for Speed II,
+  # jump boost, and knockback before flagging.
+  MAX-BLOCKS-PER-SECOND: 12.0
+
+FLIGHT:
+  ENABLED: true
+  # Ticks airborne (not falling, not gliding, no levitation/slow-falling,
+  # not in a vehicle) before flagging. 60 ticks = 3 seconds.
+  MAX-AIRBORNE-TICKS: 60
+
+REACH:
+  ENABLED: true
+  # Blocks, eye-location to target. Vanilla max is ~3 (survival) to 6
+  # (creative); this is set high specifically to avoid flagging normal
+  # lag-compensated hits.
+  MAX-ATTACK-DISTANCE: 6.0
+
+MESSAGES:
+  STAFF-ALERT: '&8[&cGuard&8] &e{player} &7flagged: &f{reason} &7({count} total flags)'
+  ADMIN-NO-FLAGS: '&7{player} has no flags.'
+  ADMIN-FLAGS-HEADER: '&6Flags for {player}:'
+  ADMIN-CLEARED: '&aCleared flags for {player}.'

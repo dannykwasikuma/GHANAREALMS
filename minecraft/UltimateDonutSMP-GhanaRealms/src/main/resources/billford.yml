@@ -1,0 +1,252 @@
+# The numerical value for Current. Available options: Any valid integer
+CURRENT: 1
+# The text or value for Rotation Mode. Available options: Any valid string text
+ROTATION_MODE: SEQUENTIAL
+# Configuration section for Countdown.
+COUNTDOWN:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # The text or value for Time Zone. Available options: Any valid string text
+  TIME_ZONE: SYSTEM
+  # The text or value for Start Date. Available options: Any valid string text
+  START_DATE: '2026-01-31 00:00:00'
+  # The numerical value for Interval Days. Available options: Any valid integer
+  INTERVAL_DAYS: 3
+  # The numerical value for Interval Hours. Available options: Any valid integer
+  INTERVAL_HOURS: 0
+# Determines whether Announce On Rotate is enabled or disabled. Available options: true, false
+ANNOUNCE_ON_ROTATE: true
+# The text or value for Announce Message. Available options: Any valid string text
+ANNOUNCE_MESSAGE: '&6&l[Billford] &eTrade has rotated! &7New trade is live. &bNext
+  change in &f{countdown}&b.'
+# Configuration section for Access.
+ACCESS:
+  # The text or value for Permission. Available options: Any valid string text
+  PERMISSION: ''
+  # The text or value for Command. Available options: Any valid string text
+  COMMAND: /billford
+  # Configuration section for Npc.
+  NPC:
+    # Determines whether Enabled is enabled or disabled. Available options: true, false
+    ENABLED: false
+    # The text or value for Display Name. Available options: Any valid string text
+    DISPLAY_NAME: '&aBillford'
+    # The text or value for Interact Command. Available options: Any valid string text
+    INTERACT_COMMAND: /billford
+# Configuration section for Settings.
+SETTINGS:
+  # The numerical value for Click Cooldown Ms. Available options: Any valid integer
+  CLICK_COOLDOWN_MS: 1000
+  # Determines whether Close Menu On Success is enabled or disabled. Available options: true, false
+  CLOSE_MENU_ON_SUCCESS: true
+  # Determines whether Reopen On Trade Change is enabled or disabled. Available options: true, false
+  REOPEN_ON_TRADE_CHANGE: true
+  # Configuration section for Allowed Click Types.
+  ALLOWED_CLICK_TYPES:
+  - LEFT
+  - RIGHT
+# Configuration section for Gui.
+GUI:
+  TITLE: '&8&lBillford &7Trade'
+  SIZE: 54
+  # The text or value for Filler Material. Available options: Any valid string text
+  FILLER_MATERIAL: GRAY_STAINED_GLASS_PANE
+  # The numerical value for Reward Slot. Available options: Any valid integer
+  REWARD_SLOT: 25
+  # The numerical value for Countdown Slot. Available options: Any valid integer
+  COUNTDOWN_SLOT: 31
+  # The numerical value for Info Slot. Available options: Any valid integer
+  INFO_SLOT: 49
+  # The numerical value for Confirm Slot. Available options: Any valid integer
+  CONFIRM_SLOT: 22
+  # The text or value for Info Material. Available options: Any valid string text
+  INFO_MATERIAL: BOOK
+  # The text or value for Input Name. Available options: Any valid string text
+  INPUT_NAME: '&f{item}'
+  # Configuration section for Input Lore.
+  INPUT_LORE:
+  - '&7Cost: &f{amount}x &e{item}'
+  - ''
+  - '&8Must already be in your inventory.'
+  # The text or value for Reward Name. Available options: Any valid string text
+  REWARD_NAME: '&aReward'
+  # Configuration section for Reward Lore.
+  REWARD_LORE:
+  - '&7Reward: &a{amount}x &f{item}'
+  - '{money_line}'
+  - '{shard_line}'
+  - ''
+  - '&8Granted when the trade succeeds.'
+  # The text or value for Countdown Name. Available options: Any valid string text
+  COUNTDOWN_NAME: '&e{trade_name}'
+  # Configuration section for Countdown Lore.
+  COUNTDOWN_LORE:
+  - '&7Next rotation: &b{countdown}'
+  - ''
+  - '&8Trade &f{trade_id} &8of &f{trade_count}'
+  # The text or value for Info Name. Available options: Any valid string text
+  INFO_NAME: '&6Trade Info'
+  # Configuration section for Info Limited Lore.
+  INFO_LIMITED_LORE:
+  - '&7Trades: &f{used} &7/ &f{limit}'
+  - '{status_line}'
+  # Configuration section for Info Unlimited Lore.
+  INFO_UNLIMITED_LORE:
+  - '&7Trades done: &f{used}'
+  - '&aUnlimited trades this rotation.'
+  # Configuration section for Confirm Button.
+  CONFIRM_BUTTON:
+    MATERIAL: EMERALD
+    NAME: '&a&lConfirm Trade'
+    LORE:
+    - '&7Bring the required items,'
+    - '&7then click to exchange them.'
+    - ''
+    - '&a&lClick to Confirm'
+  # Configuration section for Limit Button.
+  LIMIT_BUTTON:
+    MATERIAL: BARRIER
+    NAME: '&c&lLimit Reached'
+    LORE:
+    - '&cYou already used this deal enough'
+    - '&cfor the current rotation.'
+    - '&7Come back after the next refresh.'
+# Configuration section for Feedback.
+FEEDBACK:
+  # Configuration section for Success Particle.
+  SUCCESS_PARTICLE:
+    # Determines whether Enabled is enabled or disabled. Available options: true, false
+    ENABLED: true
+    TYPE: TOTEM_OF_UNDYING
+    # The numerical value for Count. Available options: Any valid integer
+    COUNT: 24
+# Configuration section for Billford.
+BILLFORD:
+  # Configuration section for 1.
+  1:
+    # The text or value for Display Name. Available options: Any valid string text
+    DISPLAY_NAME: The Gem Exchange
+    # The numerical value for Limit. Available options: Any valid integer
+    LIMIT: 3
+    # Configuration section for Inputs.
+    INPUTS:
+      # Configuration section for 1.
+      1:
+        SLOT: 11
+        MATERIAL: DIAMOND
+        # The numerical value for Quantity. Available options: Any valid integer
+        QUANTITY: 3
+      # Configuration section for 2.
+      2:
+        SLOT: 12
+        MATERIAL: EMERALD
+        # The numerical value for Quantity. Available options: Any valid integer
+        QUANTITY: 5
+    # Configuration section for Reward.
+    REWARD:
+      MATERIAL: PISTON
+      # The numerical value for Quantity. Available options: Any valid integer
+      QUANTITY: 64
+      # The numerical value for Shard Bonus. Available options: Any valid integer
+      SHARD_BONUS: 0
+      # The numerical value for Money Bonus. Available options: Any valid integer
+      MONEY_BONUS: 0
+  # Configuration section for 2.
+  2:
+    # The text or value for Display Name. Available options: Any valid string text
+    DISPLAY_NAME: The Utility Crate
+    # The numerical value for Limit. Available options: Any valid integer
+    LIMIT: 2
+    # Configuration section for Inputs.
+    INPUTS:
+      # Configuration section for 1.
+      1:
+        SLOT: 10
+        MATERIAL: IRON_INGOT
+        # The numerical value for Quantity. Available options: Any valid integer
+        QUANTITY: 32
+      # Configuration section for 2.
+      2:
+        SLOT: 11
+        MATERIAL: REDSTONE
+        # The numerical value for Quantity. Available options: Any valid integer
+        QUANTITY: 16
+      # Configuration section for 3.
+      3:
+        SLOT: 12
+        MATERIAL: EMERALD
+        # The numerical value for Quantity. Available options: Any valid integer
+        QUANTITY: 12
+    # Configuration section for Reward.
+    REWARD:
+      MATERIAL: OBSERVER
+      # The numerical value for Quantity. Available options: Any valid integer
+      QUANTITY: 32
+      # The numerical value for Shard Bonus. Available options: Any valid integer
+      SHARD_BONUS: 40
+      # The numerical value for Money Bonus. Available options: Any valid integer
+      MONEY_BONUS: 0
+  # Configuration section for 3.
+  3:
+    # The text or value for Display Name. Available options: Any valid string text
+    DISPLAY_NAME: The Ingot Deal
+    # The numerical value for Limit. Available options: Any valid integer
+    LIMIT: 1
+    # Configuration section for Inputs.
+    INPUTS:
+      # Configuration section for 1.
+      1:
+        SLOT: 11
+        MATERIAL: NETHERITE_INGOT
+        # The numerical value for Quantity. Available options: Any valid integer
+        QUANTITY: 1
+      # Configuration section for 2.
+      2:
+        SLOT: 12
+        MATERIAL: BLAZE_ROD
+        # The numerical value for Quantity. Available options: Any valid integer
+        QUANTITY: 8
+    # Configuration section for Reward.
+    REWARD:
+      MATERIAL: ELYTRA
+      # The numerical value for Quantity. Available options: Any valid integer
+      QUANTITY: 1
+      # The numerical value for Shard Bonus. Available options: Any valid integer
+      SHARD_BONUS: 120
+      # The numerical value for Money Bonus. Available options: Any valid integer
+      MONEY_BONUS: 50000
+  # Configuration section for 4.
+  4:
+    # The text or value for Display Name. Available options: Any valid string text
+    DISPLAY_NAME: The Builder Stash
+    # The numerical value for Limit. Available options: Any valid integer
+    LIMIT: 4
+    # Configuration section for Inputs.
+    INPUTS:
+      # Configuration section for 1.
+      1:
+        SLOT: 10
+        MATERIAL: GOLD_INGOT
+        # The numerical value for Quantity. Available options: Any valid integer
+        QUANTITY: 16
+      # Configuration section for 2.
+      2:
+        SLOT: 11
+        MATERIAL: LAPIS_LAZULI
+        # The numerical value for Quantity. Available options: Any valid integer
+        QUANTITY: 32
+      # Configuration section for 3.
+      3:
+        SLOT: 12
+        MATERIAL: AMETHYST_SHARD
+        # The numerical value for Quantity. Available options: Any valid integer
+        QUANTITY: 24
+    # Configuration section for Reward.
+    REWARD:
+      MATERIAL: SEA_LANTERN
+      # The numerical value for Quantity. Available options: Any valid integer
+      QUANTITY: 48
+      # The numerical value for Shard Bonus. Available options: Any valid integer
+      SHARD_BONUS: 15
+      # The numerical value for Money Bonus. Available options: Any valid integer
+      MONEY_BONUS: 0

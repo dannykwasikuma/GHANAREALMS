@@ -1,0 +1,180 @@
+# Cuboids & Portals System Guide
+
+The **Cuboid** system in UltimateDonutSMP provides lightweight, high-performance 3D region selection and protection without needing WorldGuard. Cuboids are used for Spawn protection, AFK reward areas, Shard event zones, Random Teleport (RTP) boundaries, and Portal triggers.
+
+---
+
+## Cuboid Management (`/cuboid`)
+
+### 1. Selection Wand
+Get the selection tool (a golden shovel):
+```bash
+/cuboid wand
+```
+- **Left-Click Block**: Sets Position 1 (Corner 1).
+- **Right-Click Block**: Sets Position 2 (Corner 2).
+
+### 2. Creating & Deleting Cuboids
+After selecting two corners:
+```bash
+/cuboid create <name>
+```
+*Example*: `/cuboid create spawn_zone`
+
+To remove a cuboid:
+```bash
+/cuboid delete <name>
+```
+
+To view all defined cuboids:
+```bash
+/cuboid list
+```
+
+### 3. Choosing Where Players Land
+
+Anything that teleports a player into a cuboid — `/spawn`, a spawn or AFK menu area, the shard AFK
+zone — normally aims for the middle of the region and looks downwards for the first block that is
+safe to stand on. On a hand-built spawn that is rarely the spot you want, and players always arrive
+facing the same direction.
+
+Stand exactly where players should appear, look the way they should be facing, and save it:
+
+```bash
+/cuboid setspawn <name>
+```
+
+*Example*: `/cuboid setspawn spawn_zone`
+
+The position has to be inside the cuboid, otherwise players would land outside the protection the
+region gives them. Your facing is stored along with the coordinates.
+
+To go back to the automatic middle-of-the-region spot:
+
+```bash
+/cuboid delspawn <name>
+```
+
+Saved points live under `CUBOID-SPAWNS` in `config.yml`, keyed by cuboid name:
+
+```yaml
+CUBOID-SPAWNS:
+  spawn_zone: world,128.5,71.0,-64.5,90.0,0.0
+```
+
+Deleting a cuboid removes its spawn point too, and redefining one with the wand clears the old point
+if the new corners no longer cover it.
+
+If a spawn menu area has its own `LOCATION` in `menus.yml`, that still wins for that menu button —
+the cuboid spawn point is the fallback everything else uses.
+
+---
+
+## Binding Cuboids to Systems (`/cuboid bind`)
+
+Cuboids can be bound to different server systems to enforce special features or protections:
+
+```bash
+/cuboid bind <cuboid_name> <spawn|shard|rtp-zone|rtp-queue> <true|false>
+```
+
+### Feature Binds Explained:
+
+1. **`spawn` Bind**:
+   - Registers the cuboid as a spawn destination for `/spawn` and the spawn menu.
+   - Marks the region as an allowed flight zone for `/fly` when `FLY-SYSTEM.AUTO-DISABLE-OUTSIDE` is enabled.
+   - Applies item drop restrictions when spawn item drop protection is configured.
+   - Links the region to the setup shard reward system and automatic AFK checks.
+   *Command*: `/cuboid bind spawn_zone spawn true`
+
+2. **`shard` Bind**:
+   - Defines a active Shard Cuboid zone where players holding position gain passive Shards over time.
+   - Activates PlaceholderAPI placeholders `%economy_shard_cuboid_status%` and `%economy_shard_cuboid_display%`.
+   *Command*: `/cuboid bind shard_arena shard true`
+
+3. **`rtp-zone` Bind**:
+   - Marks a region players stand *in*, not a region they get sent to. Anyone inside it sees the
+     `RTP-ZONE.EVERY` countdown on their screen, and when it reaches zero they are teleported to a
+     random location drawn from the `RTP-ZONE.WORLD` centre and radius settings. Walking back out
+     before the count finishes cancels it.
+   - Each player runs their own countdown and lands somewhere of their own, so a group standing in
+     the region is scattered rather than kept together. Use the `rtp-queue` bind below for that.
+   - Writes the region name to `RTP-ZONE.CUBOID` in `config.yml`, where the countdown length, the
+     titles and the destination world live. `RTP-ZONE.ENABLED` has to be on as well.
+   *Command*: `/cuboid bind rtp_pad rtp-zone true`
+
+4. **`rtp-queue` Bind**:
+   - Puts everyone standing in the region on the RTP matchmaking queue without them typing
+     `/rtpq`, and takes them off again when they walk out. Once enough of them are waiting the
+     whole group is dropped at one shared random location, so a fight starts where they land.
+   - Writes the region name to `QUEUE.CUBOID` in `rtp.yml`, where the match size, destination
+     world and spread radius live.
+   *Command*: `/cuboid bind rtp_pit rtp-queue true`
+
+---
+
+## Portal Management (`/portal`)
+
+The Portal system allows administrators to turn any Cuboid region into a seamless teleport trigger.
+
+### Portal Creation Syntax:
+```bash
+/portal create <portal_id> <cuboid_name> <destination_type> <destination_value>
+```
+
+### Supported Destination Types:
+- **`SPAWN`**: Teleports player to global server spawn.
+- **`WARP`**: Teleports player to a defined warp location (`<warp_name>`).
+- **`RTP`**: Triggers a random teleport upon entering the portal.
+- **`LOCATION`**: Teleports player to precise coordinates (`world,x,y,z,yaw,pitch`).
+
+### Example Portal Commands:
+```bash
+# Create spawn portal
+/portal create spawn_gate spawn_zone SPAWN
+
+# Create nether warp portal
+/portal create nether_gate nether_cuboid WARP nether_hub
+
+# Create RTP portal trigger
+/portal create rtp_gate rtp_trigger_cuboid RTP
+```
+
+### Portal Administration:
+- List all active portals: `/portalmanager list` (or `/portal list`)
+- View portal details: `/portalmanager info <id>`
+- Change portal cuboid: `/portalmanager setcuboid <id> <cuboid_name>`
+- Change portal destination: `/portalmanager setdestination <id> <type> <value>`
+- Change portal display name: `/portalmanager setdisplay <id> <name>`
+- Toggle portal: `/portalmanager toggle <id>`
+- Set hologram location: `/portalmanager sethologramhere <id>`
+- Delete portal: `/portalmanager delete <id>`
+
+---
+
+## Portal Holograms
+
+Each portal can display a floating text hologram above its cuboid or at a custom position set with `/portalmanager sethologramhere <id>`.
+
+Default lines are configured under `PORTAL-SYSTEM.HOLOGRAM.LINES` in `config.yml`, and can be overridden per portal with `PORTAL-SYSTEM.HOLOGRAM.PORTALS.<portal_id>.LINES`:
+
+```yaml
+PORTAL-SYSTEM:
+  HOLOGRAM:
+    LINES:
+    - '&f{portal}'
+    - '&7Region {region}'
+    - ''
+    - '&f<players> Players'
+```
+
+### Available Hologram Placeholders:
+- `{portal}` / `{display}`: Formatted portal display name.
+- `{region}`: Configured portal region (default: `NA East`).
+- `{players}` / `<players>` / `{destination_players}`: Player count for this portal's destination (e.g. overworld, nether, end, or AFK players).
+- `{world_players}` / `<world_players>`: Players in the destination world.
+- `{afk_players}` / `<afk_players>`: Players currently in the AFK pool or marked AFK.
+- `{total_player}` / `<total_player>` / `{online}`: Total online players on the server.
+- `{max_players}` / `<max_players>`: Server player capacity.
+- `{world}` / `{world_name}`: Destination world label / raw world name.
+- `{server}` / `{server_id}` / `{server_status}`: Remote network server display name, ID, and online status.

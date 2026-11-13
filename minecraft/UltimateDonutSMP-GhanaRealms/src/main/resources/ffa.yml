@@ -1,0 +1,57 @@
+# ==============================================================================
+# UltimateDonutSMP - Free For All (FFA) Configuration
+# ==============================================================================
+
+# General FFA arena settings
+SETTINGS:
+  # Enable or disable the FFA system globally (true / false)
+  ENABLED: true
+  # Delay before teleporting players back after leaving/dying in FFA (in seconds)
+  RETURN_DELAY_SECONDS: 3
+
+# Arena Rollback and restoration settings
+ROLLBACK:
+  # Enable arena block rollback and cleanup after FFA activity (true / false)
+  ENABLED: true
+  # Extra horizontal padding blocks preserved around FFA arena (in blocks)
+  PADDING_HORIZONTAL: 48
+  # Extra vertical padding blocks preserved around FFA arena (in blocks)
+  PADDING_VERTICAL: 20
+  # Delay in seconds before starting block rollback
+  TIMEOUT_SECONDS: 10
+  # Automatically remove projectiles (arrows, snowballs) in FFA arena (true / false)
+  CLEANUP_PROJECTILES: true
+  # Automatically remove dropped item entities in FFA arena (true / false)
+  CLEANUP_DROPS: true
+  # Automatically extinguish fires and drain fluid blocks placed during FFA (true / false)
+  CLEANUP_FIRE_AND_FLUIDS: true
+
+# Player state management upon entering and exiting FFA
+PLAYER_STATE:
+  # Restore player inventory upon exiting FFA match (true / false)
+  RESTORE_INVENTORY: true
+  # Restore health to max upon exiting FFA match (true / false)
+  RESTORE_HEALTH: true
+  # Clear active potion effects upon entering/exiting FFA (true / false)
+  RESTORE_EFFECTS: true
+
+# Match rules and restrictions
+RULES:
+  # Block general player commands while inside FFA arena (true / false)
+  BLOCK_COMMANDS: true
+  # Whether FFA kills/deaths count toward global player statistics (true / false)
+  COUNT_TOWARD_GLOBAL_STATS: false
+  # Whether survival rewards (money/shards) are granted for kills in FFA (true / false)
+  GIVE_SURVIVAL_REWARDS: false
+
+# End match screen titles and subtitles
+RESULT-TITLES:
+  victory:
+    title: '&e&lVICTORY!'
+    subtitle: '&e<player> &fwon the FFA Match!'
+  defeat:
+    title: '&c&lDEFEAT!'
+    subtitle: '&c<opponent> &feliminated you!'
+
+# Configuration for static FFA arena definitions (managed via /ffa commands)
+ARENA_SETTINGS: {}

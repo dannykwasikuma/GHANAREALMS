@@ -1,55 +1,27 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+# Node / Next.js
+web/node_modules/
+web/.next/
+web/.env.local
+web/.env*.local
+web/npm-debug.log*
 
-# compiled output
-dist
-tmp
-out-tsc
-*.tsbuildinfo
-.expo
-.expo-shared
-.next
-.turbo
-.svelte-kit
-.nuxt
-.output
-.vercel
+# Java / Maven
+minecraft/*/target/
+*.class
 
-# dependencies
-node_modules
-
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# IDE - VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# misc
-/.sass-cache
-/connect.lock
-/coverage
-/libpeerconnection.log
-npm-debug.log
-yarn-error.log
-testem.log
-/typings
-
-# System Files
+# OS
 .DS_Store
-Thumbs.db
 
-.cursor/rules/nx-rules.mdc
-.github/instructions/nx.instructions.md
+# Never commit real secrets
+*.pem
+*.key
 
-# Replit
-.cache/
-.local/
+# Protect environment files
+**/.env
+**/.env.local
+**/.env.*.local
+**/.env.production
+**/*.pem
+**/*.key
+**/node_modules/
+**/target/

@@ -1,0 +1,28 @@
+name: GhanaRealmsAscension
+version: '${project.version}'
+main: com.ghanarealms.ascension.GhanaRealmsAscension
+api-version: '1.21'
+author: GhanaRealms
+description: Original GhanaRealms level/rank/stat progression system with instanced combat trials (Gates)
+
+commands:
+  rank:
+    aliases: [level, ascend]
+    description: View your GhanaRealms rank, level, and stats
+    usage: /rank [player]
+    permission: ghanarealmsascension.use
+  statpoint:
+    aliases: [stats]
+    description: Spend stat points earned from leveling
+    usage: /statpoint <strength|vitality|agility> <amount>
+    permission: ghanarealmsascension.use
+  gate:
+    description: Open or enter a combat trial gate
+    usage: /gate <open|leave>
+    permission: ghanarealmsascension.gate
+
+permissions:
+  ghanarealmsascension.use:
+    default: true
+  ghanarealmsascension.gate:
+    default: true

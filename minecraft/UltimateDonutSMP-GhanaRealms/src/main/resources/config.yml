@@ -1,0 +1,1189 @@
+# Configuration section for Language.
+LANGUAGE:
+  # The language players see, taken from the matching file in the languages folder
+  # Bundled locales: en_US, es_ES, id_ID, pt_BR, de_DE, fr_FR, ru_RU, zh_CN
+  # Names such as Bahasa Indonesia, Spanish or pt-BR resolve to those, and a custom
+  # file dropped into the languages folder can be selected by its file name
+  # Available options: Any valid string text
+  ACTIVE: en_US
+  # Supplies any message the active language is missing
+  # Available options: Any valid string text
+  FALLBACK: en_US
+# Configuration section for Locations.
+LOCATIONS:
+  # The text or value for Spawn Location. Available options: Any valid string text
+  SPAWN-LOCATION: ''
+  # The text or value for Afk Location. Available options: Any valid string text
+  AFK-LOCATION: ''
+# Configuration section for Portal System.
+PORTAL-SYSTEM:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # Determines whether Block In Combat is enabled or disabled. Available options: true, false
+  BLOCK-IN-COMBAT: true
+  # The numerical value for Default Trigger Cooldown Ms. Available options: Any valid integer
+  DEFAULT-TRIGGER-COOLDOWN-MS: 1500
+  # The numerical value for Post Teleport Grace Ms. Available options: Any valid integer
+  POST-TELEPORT-GRACE-MS: 2000
+  # Configuration section for Hologram.
+  HOLOGRAM:
+    # Determines whether Enabled is enabled or disabled. Available options: true, false
+    ENABLED: true
+    # The text or value for Default Region. Available options: Any valid string text
+    DEFAULT-REGION: NA East
+    # The text or value for Default Server Id. Available options: Any valid string text
+    DEFAULT-SERVER-ID: ''
+    # The text or value for Portals. Available options: Any valid string text
+    PORTALS: null
+    # The decimal value for Offset Y. Available options: Any decimal number
+    OFFSET-Y: 1.2
+    # The decimal value for Set Here Offset Y. Available options: Any decimal number
+    SET-HERE-OFFSET-Y: 1.6
+    # The decimal value for Line Spacing. Available options: Any decimal number
+    LINE-SPACING: 0.27
+    # The numerical value for Update Ticks. Available options: Any valid integer
+    UPDATE-TICKS: 40
+    # Configuration section for Lines.
+    LINES:
+    - '&f{portal}'
+    - '&7Region {region}'
+    - ''
+    - '&f<players> Players'
+# Configuration section for Settings.
+SETTINGS:
+  # Determines whether Respawn On Bed is enabled or disabled. Available options: true, false
+  RESPAWN-ON-BED: false
+  # Determines whether Chainmail On Respawn is enabled or disabled. Available options: true, false
+  CHAINMAIL-ON-RESPAWN: true
+  # Configuration section for Chainmail Respawn Items.
+  CHAINMAIL-RESPAWN-ITEMS:
+  - MATERIAL: STONE_SWORD
+    # The numerical value for Amount. Available options: Any valid integer
+    AMOUNT: 1
+  - MATERIAL: CHAINMAIL_HELMET
+    NAME: '&eChainmail Helmet'
+    # The numerical value for Amount. Available options: Any valid integer
+    AMOUNT: 1
+  - MATERIAL: CHAINMAIL_CHESTPLATE
+    NAME: '&eChainmail Chestplate'
+    # The numerical value for Amount. Available options: Any valid integer
+    AMOUNT: 1
+  - MATERIAL: CHAINMAIL_LEGGINGS
+    NAME: '&eChainmail Leggings'
+    # The numerical value for Amount. Available options: Any valid integer
+    AMOUNT: 1
+  - MATERIAL: CHAINMAIL_BOOTS
+    NAME: '&eChainmail Boots'
+    # The numerical value for Amount. Available options: Any valid integer
+    AMOUNT: 1
+  - MATERIAL: COOKED_BEEF
+    # The numerical value for Amount. Available options: Any valid integer
+    AMOUNT: 16
+  # Homes every player gets when no HOME-PERMISSIONS entry applies to them
+  # Raise the HOME-PERMISSIONS entries below to hand out extra homes as a rank perk
+  # Available options: Any valid integer
+  HOME-DEFAULT: 2
+  # Per-rank home limits resolved from permissions
+  HOME-PERMISSIONS:
+    # Enable or disable permission based home limits
+    ENABLED: true
+    # Explicit mapping from permission node to home limit
+    # Players can also be given ultimatedonutsmp.homes.<1-100> directly, for example
+    # ultimatedonutsmp.homes.10 for ten homes, or ultimatedonutsmp.homes.page.<1-100> to
+    # hand out whole pages of five at a time
+    # The highest value the player has wins
+    # Players without any of these permissions keep HOME-DEFAULT above
+    PERMISSIONS:
+      "ultimatedonutsmp.homes.vip++": 15
+      "ultimatedonutsmp.homes.vip+": 10
+      "ultimatedonutsmp.homes.vip": 5
+  # Configuration section for Excluded Worlds where homes cannot be set.
+  # Available options: List of world names
+  HOME-EXCLUDED-WORLDS: []
+  # The numerical value for Shards Per Kill. Available options: Any valid integer
+  SHARDS-PER-KILL: 1
+  # The text or value for Shards Kill Message. Available options: Any valid string text
+  SHARDS-KILL-MESSAGE: '&#A303F9+{shards} Shard'
+  # The text or value for Shards Kill Message Boosted, shown instead of Shards Kill
+  # Message while a shard booster multiplies the kill reward. Supports {multiplier}.
+  # Available options: Any valid string text
+  SHARDS-KILL-MESSAGE-BOOSTED: '&#A303F9+{shards} Shards &7(&ax{multiplier}&7)'
+  # The numerical value for Shards Kill Cooldown Seconds. Blocks repeated kill rewards
+  # against the same victim until the cooldown expires. Set to 0 to disable.
+  # Available options: Any valid integer
+  SHARDS-KILL-COOLDOWN-SECONDS: 600
+  # The text or value for Shards Kill Cooldown Message, shown when the kill reward is
+  # skipped because the same victim was killed recently. Leave empty to stay silent.
+  # Available options: Any valid string text
+  SHARDS-KILL-COOLDOWN-MESSAGE: '&cNo Shard &7(killed recently, {time} left)'
+  # The decimal value for Money Per Default. Available options: Any decimal number
+  MONEY-PER-DEFAULT: 1000.0
+  # The text or value for Sell Message. Available options: Any valid string text
+  SELL-MESSAGE: '&a+$%price%'
+  # Determines whether Spawn Menu is enabled or disabled. Available options: true, false
+  SPAWN-MENU: true
+  # Determines whether Afk Menu is enabled or disabled. Available options: true, false
+  AFK-MENU: true
+  # Determines whether players are teleported to the spawn location the first time they
+  # join the server. Ignored while First Join Rtp Enabled is true. Available options:
+  # true, false
+  TELEPORT-SPAWN-ON-FIRST-JOIN: true
+  # The numerical value for First Join Spawn Delay Ticks, how long to wait after a new
+  # player joins before sending them to spawn. Raise it when another plugin moves players
+  # around on join. Available options: Any valid integer
+  FIRST-JOIN-SPAWN-DELAY-TICKS: 20
+  # Writes a [JOIN] or [QUIT] line into the server log when a player connects or
+  # disconnects. Independent of the in-game join and leave messages, so staff can
+  # still see traffic in latest.log after those chat lines are turned off.
+  # Available options: true, false
+  LOG-JOIN-QUIT: true
+  # The decimal value for Worth Default Value. Available options: Any decimal number
+  WORTH-DEFAULT-VALUE: 1.0
+  # The numerical value for Mob Spawn Radius. Available options: Any valid integer
+  MOB-SPAWN-RADIUS: 50
+  # The numerical value for Phantom Spawn Radius. Available options: Any valid integer
+  PHANTOM-SPAWN-RADIUS: 40
+  # The numerical value for Disable Mob Spawn Limit Seconds. Set to -1 for no limit. Available options: Any valid integer
+  DISABLE-MOB-SPAWN-LIMIT-SECONDS: -1
+  # The numerical value for Disable Phantom Spawn Limit Seconds. Set to -1 for no limit. Available options: Any valid integer
+  DISABLE-PHANTOM-SPAWN-LIMIT-SECONDS: 3600
+  # Determines whether the per player mob spawn toggle also stops trial spawners in trial
+  # chambers. Leave it false so the chamber still has to be fought. A trial spawner ejects
+  # its rewards once the mobs it released are gone, so blocking those spawns hands out the
+  # loot for free. Available options: true, false
+  MOB-SPAWN-TOGGLE-BLOCKS-TRIAL-SPAWNERS: false
+# Configuration section for Features.
+FEATURES_SETTINGS:
+  # Action when executing a command linked to a disabled feature.
+  # Options:
+  # - "MESSAGE": Shows "The <feature> feature is currently disabled."
+  # - "UNKNOWN": Shows default unknown command message.
+  # - "UNREGISTER": Dynamically unregister command from Bukkit command map.
+  DISABLED_COMMAND_ACTION: "MESSAGE"
+# Configuration section for Chat.
+CHAT:
+  # Determines whether Format Enabled is enabled or disabled. Available options: true, false
+  FORMAT-ENABLED: true
+  # The text or value for Format. Available options: Any valid string text
+  FORMAT: '&f%prefix%%player%&7: &f%message%'
+  # Configuration section for Message Colors.
+  MESSAGE-COLORS:
+    # The text or value for Default. Available options: Any valid string text
+    default: '&f'
+    # The text or value for Owner. Available options: Any valid string text
+    owner: '&#0000FF'
+  # Configuration section for Clickable Name.
+  CLICKABLE-NAME:
+    # Determines whether Enabled is enabled or disabled. Available options: true, false
+    ENABLED: true
+    # Configuration section for Hover Text.
+    HOVER-TEXT:
+    - '%luckperms_prefix%%player%'
+    - '&7&m----------'
+    - '&#00FC00&l$ &fmoney &#00FC00%economy_money%'
+    - '&#FC0000⚔ &fkills &#FC0000%economy_kills%'
+    - '&#FCE300⌚ &fplaytime &#FCE300%economy_playtime%'
+    - '&#F97603☠ &fdeaths &#F97603%economy_deaths%'
+    - '&#A303F9★ &fshards &#A303F9%economy_shards%'
+    - '&7&m----------'
+    - '&7click to view stats'
+    # The text or value for Suggest Command. Available options: Any valid string text
+    SUGGEST-COMMAND: '/msg <player> '
+  # Determines whether Global Chat Muted is enabled or disabled. Available options: true, false
+  GLOBAL-CHAT-MUTED: false
+  # Determines whether Global Chat Delay Enabled is enabled or disabled. Available options: true, false
+  GLOBAL-CHAT-DELAY-ENABLED: false
+  # The numerical value for Global Chat Delay. Available options: Any valid integer
+  GLOBAL-CHAT-DELAY: 3
+  # The numerical value for Max Delay Seconds. Available options: Any valid integer
+  MAX-DELAY-SECONDS: 30
+  # The numerical value for Clear Lines. Available options: Any valid integer
+  CLEAR-LINES: 150
+  # Configuration section for Logging. Writes chat into each player's own log, so staff can
+  # read it back with /logs <player> or browse the whole server with /chatlog. None of these
+  # switches change what players see in chat.
+  LOGGING:
+    # Master switch for chat logging. With this off, neither public nor private messages are
+    # recorded, whatever the two switches below say. Available options: true, false
+    ENABLED: true
+    # Records normal public chat. Only messages that actually reach chat are stored, so muted,
+    # filtered and rate-limited messages are left out. Available options: true, false
+    PUBLIC-MESSAGES: true
+    # Records private messages sent with /msg and /reply, on both sides of the conversation.
+    # Available options: true, false
+    PRIVATE-MESSAGES: true
+  # Configuration section for Filter.
+  FILTER:
+    # Determines whether Enabled is enabled or disabled. Available options: true, false
+    ENABLED: true
+    # The text or value for Block Message. Available options: Any valid string text
+    BLOCK-MESSAGE: '&7Please avoid using inappropriate words.'
+    # Configuration section for Words.
+    WORDS:
+    - fuck
+    - shit
+    - bitch
+    # Configuration section for Language.
+    LANGUAGE:
+      # Determines whether Enabled is enabled or disabled. Available options: true, false
+      ENABLED: false
+      # Configuration section for Allowed Alphabets.
+      ALLOWED-ALPHABETS:
+      - LATIN
+      - NUMBERS
+      - SYMBOLS
+      # The text or value for Block Message. Available options: Any valid string text
+      BLOCK-MESSAGE: '&cYour message contains characters that are not allowed on this
+        server.'
+    # Configuration section for Caps.
+    CAPS:
+      # Determines whether Enabled is enabled or disabled. Available options: true, false
+      ENABLED: false
+      # The numerical value for Percentage. Available options: Any valid integer
+      PERCENTAGE: 70
+      # The numerical value for Min Length. Available options: Any valid integer
+      MIN-LENGTH: 5
+      # The text or value for Block Message. Available options: Any valid string text
+      BLOCK-MESSAGE: '&cPlease avoid using too many capital letters.'
+    # Configuration section for Anti Repeat.
+    ANTI-REPEAT:
+      # Determines whether Enabled is enabled or disabled. Available options: true, false
+      ENABLED: false
+      # The text or value for Block Message. Available options: Any valid string text
+      BLOCK-MESSAGE: '&cYou cannot repeat the same message!'
+    # Configuration section for Anti Link.
+    ANTI-LINK:
+      # Determines whether Enabled is enabled or disabled. Available options: true, false
+      ENABLED: false
+      # Configuration section for Allowed.
+      ALLOWED:
+      - google.com
+      - youtube.com
+      # The text or value for Block Message. Available options: Any valid string text
+      BLOCK-MESSAGE: '&cLinks are not allowed in the chat!'
+    # Configuration section for Length.
+    LENGTH:
+      # Configuration section for Min.
+      MIN:
+        # Determines whether Enabled is enabled or disabled. Available options: true, false
+        ENABLED: false
+        # The numerical value for Value. Available options: Any valid integer
+        VALUE: 1
+        # The text or value for Block Message. Available options: Any valid string text
+        BLOCK-MESSAGE: '&cYour message is too short! (Min: %min%)'
+      # Configuration section for Max.
+      MAX:
+        # Determines whether Enabled is enabled or disabled. Available options: true, false
+        ENABLED: false
+        # The numerical value for Value. Available options: Any valid integer
+        VALUE: 100
+        # The text or value for Block Message. Available options: Any valid string text
+        BLOCK-MESSAGE: '&cYour message is too long! (Max: %max%)'
+# Server-wide announcements for joins, leaves and the marketplaces. Every message here uses
+# the same colour codes as the rest of the plugin: &a style codes, &#RRGGBB for a single hex
+# colour and <#RRGGBB>text</#RRGGBB> for a gradient. Each announcement ships switched off, so
+# updating the jar never changes how an existing server's chat looks - turn on the ones you
+# want. Join, leave and first-join lines still follow each player's Join/Leave Messages choice
+# under /settings, and the marketplace lines follow their Server Broadcasts switch.
+#
+# Each of the three lines below can also read differently per rank. Put the permission a rank
+# carries under BY-PERMISSION with the wording that rank should get. The first entry a player
+# matches wins, so list your highest rank first, exactly as the examples do. A player matching
+# nothing gets the plain MESSAGE above it, which is also what happens while BY-PERMISSION is
+# empty, so leaving it alone keeps the wording every server has today. Matching is on the exact
+# node: a wildcard such as ultimatedonutsmp.* does not pick these up, so an operator is
+# announced with the plain line unless you grant them one of these nodes yourself.
+SERVER-NOTIFICATIONS:
+  # The line everyone sees when a player connects. While this is off the server's own join
+  # message is relayed instead, exactly as it is today.
+  JOIN:
+    # Determines whether Join is enabled or disabled. Available options: true, false
+    ENABLED: false
+    # The text or value for Message. Supports {player}. Available options: Any valid string text
+    MESSAGE: '&8[&a+&8] &a{player} &7joined the server.'
+    # Per-rank wording, resolved from permissions. Supports {player} like MESSAGE above.
+    # Delete the examples you do not want; they are never merged back once removed.
+    BY-PERMISSION:
+      "ultimatedonutsmp.notifications.join.vip++": '&8[&a+&8] &6{player} &7joined the server.'
+      "ultimatedonutsmp.notifications.join.vip+": '&8[&a+&8] &b{player} &7joined the server.'
+      "ultimatedonutsmp.notifications.join.vip": '&8[&a+&8] &e{player} &7joined the server.'
+  # The line everyone sees when a player disconnects. While this is off the server's own quit
+  # message is relayed instead, exactly as it is today.
+  LEAVE:
+    # Determines whether Leave is enabled or disabled. Available options: true, false
+    ENABLED: false
+    # The text or value for Message. Supports {player}. Available options: Any valid string text
+    MESSAGE: '&8[&c-&8] &c{player} &7left the server.'
+    # Per-rank wording, resolved from permissions. Supports {player} like MESSAGE above.
+    # Delete the examples you do not want; they are never merged back once removed.
+    BY-PERMISSION:
+      "ultimatedonutsmp.notifications.leave.vip++": '&8[&c-&8] &6{player} &7left the server.'
+      "ultimatedonutsmp.notifications.leave.vip+": '&8[&c-&8] &b{player} &7left the server.'
+      "ultimatedonutsmp.notifications.leave.vip": '&8[&c-&8] &e{player} &7left the server.'
+  # Sent in place of the join line the very first time a player ever connects. It replaces the
+  # join message rather than arriving alongside it, so nobody gets announced twice.
+  FIRST-JOIN:
+    # Determines whether First Join is enabled or disabled. Available options: true, false
+    ENABLED: false
+    # The text or value for Message. Supports {player}. Available options: Any valid string text
+    MESSAGE: '&aWelcome &e{player} &ato the server for the first time!'
+    # Per-rank wording, resolved from permissions. Supports {player} like MESSAGE above.
+    # Delete the examples you do not want; they are never merged back once removed.
+    BY-PERMISSION:
+      "ultimatedonutsmp.notifications.first-join.vip++": '&aWelcome &6{player} &ato the server for the first time!'
+      "ultimatedonutsmp.notifications.first-join.vip+": '&aWelcome &b{player} &ato the server for the first time!'
+      "ultimatedonutsmp.notifications.first-join.vip": '&aWelcome &e{player} &ato the server for the first time!'
+  # Announcements for the Auction House. Bot listings are never announced.
+  AUCTION-HOUSE:
+    # Determines whether Auction House announcements are enabled or disabled. Turning this off
+    # silences both lines below. Available options: true, false
+    ENABLED: true
+    # Sent when a player puts an item up for sale.
+    LISTING:
+      # Determines whether Listing is enabled or disabled. Available options: true, false
+      ENABLED: false
+      # The text or value for Message. Supports {player}, {item}, {amount}, {price},
+      # {price_formatted} and {category}. Available options: Any valid string text
+      MESSAGE: '&8[&6AH&8] &f{player} &7listed &e{amount}x {item} &7for &a{price_formatted}&7.'
+    # Sent when a player buys a listing.
+    PURCHASE:
+      # Determines whether Purchase is enabled or disabled. Available options: true, false
+      ENABLED: false
+      # The text or value for Message. Supports {player}, {seller}, {item}, {amount}, {price}
+      # and {price_formatted}. Available options: Any valid string text
+      MESSAGE: '&8[&6AH&8] &f{player} &7bought &e{amount}x {item} &7for &a{price_formatted}&7.'
+  # Announcements for Orders. Bot orders are never announced.
+  ORDERS:
+    # Determines whether Order announcements are enabled or disabled. Turning this off silences
+    # both lines below. Available options: true, false
+    ENABLED: true
+    # Sent when a player opens a new order.
+    CREATE:
+      # Determines whether Create is enabled or disabled. Available options: true, false
+      ENABLED: false
+      # The text or value for Message. Supports {player}, {item}, {amount}, {price},
+      # {price_formatted}, {total} and {total_formatted}.
+      # Available options: Any valid string text
+      MESSAGE: '&8[&6ORDER&8] &f{player} &7created an order for &e{amount}x {item} &7at &a{price_formatted} &7each.'
+    # Sent once an order has been filled all the way, not on every partial delivery. {player}
+    # is whoever handed over the last of it and {owner} is whoever opened the order.
+    COMPLETE:
+      # Determines whether Complete is enabled or disabled. Available options: true, false
+      ENABLED: false
+      # The text or value for Message. Supports {player}, {owner}, {item}, {amount}, {price},
+      # {price_formatted}, {total} and {total_formatted}.
+      # Available options: Any valid string text
+      MESSAGE: '&8[&6ORDER&8] &f{player} &7completed &e{owner}&7''s order for &e{amount}x {item}&7.'
+# Configuration section for Afk System.
+AFK-SYSTEM:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # The numerical value for Time. Available options: Any valid integer
+  TIME: 180
+  # The text or value for Spawn Cuboid Name. Available options: Any valid string text
+  SPAWN-CUBOID-NAME: spawn
+  # The text or value for Afk Cuboid Name. Available options: Any valid string text
+  AFK-CUBOID-NAME: ''
+  # The text or value for Message. Available options: Any valid string text
+  MESSAGE: '&7You have been moved to the AFK area for being inactive in the spawn.'
+# Configuration section for Item Drop Prevention.
+PREVENT-ITEM-DROP:
+  # Prevent players from dropping items while in the spawn region.
+  SPAWN: true
+  # Prevent players from dropping items while AFK (either in the AFK area or has AFK status).
+  AFK: true
+  # Bypass permission for admins/staff to allow item dropping.
+  BYPASS-PERMISSION: 'ultimatedonutsmp.preventdrop.bypass'
+  # Message sent to player when their drop is cancelled. Set to '' to disable message.
+  MESSAGE: '&c✗ You are not allowed to drop items in spawn or AFK areas!'
+# Configuration section for Cuboid Binds.
+CUBOID-BINDS:
+  # A list configuration for Spawn. Available options: Multiple items
+  SPAWN: []
+  # A list configuration for Afk. Available options: Multiple items
+  AFK: []
+# Configuration section for Fly System.
+FLY-SYSTEM:
+  # The permission required for regular players/ranks to fly in spawn or cuboids.
+  PLAYER-FLY-PERMISSION: 'ultimatedonutsmp.player.fly'
+  # Disable flight automatically when the player leaves the allowed areas or enters combat.
+  AUTO-DISABLE-OUTSIDE: true
+  # Minimum allowed flying speed (integer/decimal between 1 and 10)
+  MIN-SPEED: 1
+  # Maximum allowed flying speed (integer/decimal between 1 and 10)
+  MAX-SPEED: 10
+# Configuration section for Worth Lore.
+WORTH-LORE:
+  # Determines whether the worth line is shown at all. Turning this off takes the line away
+  # from everyone, whatever players picked under /settings > Worth Display.
+  # Available options: true, false
+  ENABLED: true
+  # The text or value for Format. Available options: Any valid string text
+  FORMAT: '&7Worth: &a$%price%'
+# The balance line players can switch on under /settings > Money Nametags. It uses the
+# scoreboard slot Minecraft reserves for a line under a username, so the client draws it
+# itself, one line below the name and never anywhere else. Two of the client's own rules
+# come with that: the line only appears within about ten blocks, and only one plugin can
+# own that slot at a time. Every player keeps their own switch, so turning it on only
+# changes what that player sees under other players' names.
+MONEY-NAMETAGS:
+  # Determines whether Money Nametags is enabled or disabled. Turning this off takes the
+  # line away from everyone, whatever players picked in /settings.
+  # Available options: true, false
+  ENABLED: true
+  # The text or value for Format. Supports {balance} and PlaceholderAPI placeholders.
+  # Available options: Any valid string text
+  FORMAT: '&a$ &f{balance}'
+  # Determines whether balances are shortened to 1.1K, 1.1M, 1.1B and so on instead of
+  # being written out as 1,100,000. Available options: true, false
+  SHORT-FORMAT: true
+  # How quickly a balance change shows up on the line, in ticks. Where the line sits is the
+  # client's business, so this only decides how fresh the number is.
+  # Available options: 1 to 40
+  UPDATE-INTERVAL-TICKS: 10
+# Configuration section for End Crystal.
+END-CRYSTAL:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: false
+  # The decimal value for Damage. Available options: Any decimal number
+  DAMAGE: 2.0
+# Configuration section for Fast Crystals.
+FAST-CRYSTALS:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # Determines whether Default Player State is enabled or disabled. Available options: true, false
+  DEFAULT-PLAYER-STATE: true
+  # Configuration section for Excluded Worlds.
+  EXCLUDED-WORLDS:
+  - duels
+  # Configuration section for Place.
+  PLACE:
+    # The numerical value for Enabled Cooldown Ticks. Available options: Any valid integer
+    ENABLED-COOLDOWN-TICKS: 0
+    # The numerical value for Disabled Cooldown Ticks. Available options: Any valid integer
+    DISABLED-COOLDOWN-TICKS: 8
+    # The numerical value for Debounce Ms. Available options: Any valid integer
+    DEBOUNCE-MS: 40
+    # Determines whether Require Valid Base is enabled or disabled. Available options: true, false
+    REQUIRE-VALID-BASE: true
+    # Configuration section for Valid Bases.
+    VALID-BASES:
+    - OBSIDIAN
+    - BEDROCK
+    # Determines whether Require Air Above is enabled or disabled. Available options: true, false
+    REQUIRE-AIR-ABOVE: true
+    # Determines whether Require Air Two Above is enabled or disabled. Available options: true, false
+    REQUIRE-AIR-TWO-ABOVE: true
+  # Configuration section for Break.
+  BREAK:
+    # Determines whether Clear Cooldown After Hit is enabled or disabled. Available options: true, false
+    CLEAR-COOLDOWN-AFTER-HIT: true
+# Configuration section for Respawn Anchor.
+RESPAWN-ANCHOR:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: false
+  # The decimal value for Damage. Available options: Any decimal number
+  DAMAGE: 2.0
+# Configuration section for Boss Sounds.
+BOSS-SOUNDS:
+  # Determines whether Enabled is enabled or disabled. When true, the two boss sounds Minecraft
+  # plays to everyone online are kept to players within RADIUS blocks of the boss. Set it to false
+  # to leave the vanilla behaviour alone. Available options: true, false
+  ENABLED: true
+  # The numerical value for Radius. How far the sound carries, in blocks, measured from the boss to
+  # the player. 1600 is 100 chunks. Players in another world never hear it. A value of 0 or less
+  # turns the limit off. Available options: Any valid integer
+  RADIUS: 1600
+  # Determines whether Wither Spawn is enabled or disabled. Covers the roar a wither makes once it
+  # finishes charging up. Available options: true, false
+  WITHER-SPAWN: true
+  # Determines whether Ender Dragon Death is enabled or disabled. Covers the growl an ender dragon
+  # makes as it starts dying. Available options: true, false
+  ENDER-DRAGON-DEATH: true
+# Configuration section for Ender Chest.
+ENDER-CHEST:
+  # Determines whether Six Row is enabled or disabled. Available options: true, false
+  SIX-ROW: true
+# Configuration section for Lunar Client.
+LUNAR-CLIENT:
+  # Configuration section for Rich Presence.
+  RICH-PRESENCE:
+    # Determines whether Enabled is enabled or disabled. Available options: true, false
+    ENABLED: true
+    # The numerical value for Update. Available options: Any valid integer
+    UPDATE: 1
+    # The text or value for Player State. Available options: Any valid string text
+    PLAYER-STATE: Playing
+    # The text or value for Game State. Available options: Any valid string text
+    GAME-STATE: Playing
+    # The text or value for Game Name. Available options: Any valid string text
+    GAME-NAME: Economy
+    # The text or value for Variant. Available options: Any valid string text
+    VARIANT: '%economy_username% ($%economy_nicestMoney%)'
+    # The text or value for World Name. Available options: Any valid string text
+    WORLD-NAME: Economy
+    # The text or value for Sub Server Name. Available options: Any valid string text
+    SUB-SERVER-NAME: SMP
+    # The text or value for Team Current Size. Available options: Any valid string text
+    TEAM-CURRENT-SIZE: '{team_size}'
+    # The text or value for Team Max Size. Available options: Any valid string text
+    TEAM-MAX-SIZE: '{team_max_size}'
+    # The numerical value for Max Field Length. Available options: Any valid integer
+    MAX-FIELD-LENGTH: 128
+  # Configuration section for Team View.
+  TEAM-VIEW:
+    # Determines whether Enabled is enabled or disabled. Available options: true, false
+    ENABLED: true
+    # The numerical value for Update. Available options: Any valid integer
+    UPDATE: 20
+# Configuration section for Shards.
+SHARDS:
+  # EVERY down to CANCELLED-MESSAGE are a fallback for servers that have no shard region
+  # at all. They are read only when CUBOIDS.REGIONS below is empty, and this file ships a
+  # 'spawn' region, so on a normal install they do nothing. The settings that actually run
+  # are the ones inside CUBOIDS.REGIONS.<region>. RESET-ON-LEAVE is not part of this group:
+  # it stays live as the default for the matching per-region key.
+  # Minutes between rewards in the fallback zone. Watch the unit, because the per-region
+  # INTERVAL is in seconds and this one is multiplied by 60.
+  EVERY: 1
+  # Shards paid out each time the fallback timer runs down.
+  AMOUNT: 1
+  # Countdown shown on the action bar in the fallback zone. %time% is the time remaining,
+  # %seconds% the same thing as a plain number.
+  COUNTDOWN: '&7Next shard in &#A303F9%time%'
+  # Shown when a fallback reward lands. %amount% is the payout and %total% the new balance.
+  RECEIVED: '&#A303F9You received %amount% Shard &7(Total: &#A303F9%total%&7)'
+  # Replaces RECEIVED while a shard booster is running. %multiplier% is the boost.
+  RECEIVED-BOOSTED: '&#A303F9You received %amount% Shards &7(&ax%multiplier%&7) &7(Total:
+    &#A303F9%total%&7)'
+  # Shown when a player leaves the fallback zone before the timer finishes. %cuboid% is the
+  # zone name. There is no %total% here, since nothing was paid out.
+  CANCELLED-MESSAGE: '&cShard reward cancelled &7(Left %cuboid% zone)'
+  # Determines whether Reset On Leave is enabled or disabled. Available options: true, false
+  RESET-ON-LEAVE: true
+  # Configuration section for Cuboids.
+  CUBOIDS:
+    # Configuration section for Regions.
+    REGIONS:
+      # Configuration section for Spawn.
+      spawn:
+        # Determines whether Enabled is enabled or disabled. Available options: true, false
+        ENABLED: false
+        # Determines whether Bound is enabled or disabled. Available options: true, false
+        BOUND: false
+        # The numerical value for Priority. Available options: Any valid integer
+        PRIORITY: 100
+        # The text or value for Cuboid. Available options: Any valid string text
+        CUBOID: ''
+        # The text or value for World. Available options: Any valid string text
+        WORLD: world
+        # Radius in blocks for the point-based fallbacks. LOCATION gets a sphere this wide
+        # that pays shards alongside CUBOID, and the AFK point gets one that counts as the
+        # AFK area when no AFK cuboid is bound. One number covers both. Set 0 to switch the
+        # shard sphere off and leave the AFK sphere at its built-in 16.
+        RADIUS: 16
+        # The numerical value for Interval. Available options: Any valid integer
+        INTERVAL: 60
+        # The numerical value for Amount. Available options: Any valid integer
+        AMOUNT: 1
+        # The text or value for Countdown Message. Available options: Any valid string text
+        COUNTDOWN-MESSAGE: '&7Next shard in &#A303F9%time%'
+        # The text or value for Reward Message. Available options: Any valid string text
+        REWARD-MESSAGE: '&#A303F9You received %amount% Shard &7(Total: &#A303F9%total%&7)'
+        # The text or value for Boosted Reward Message. Available options: Any valid string text
+        BOOSTED-REWARD-MESSAGE: '&#A303F9You received %amount% Shards &7(&ax%multiplier%&7) &7(Total: &#A303F9%total%&7)'
+        # The text or value for Leave Message. Available options: Any valid string text
+        LEAVE-MESSAGE: '&cShard reward cancelled &7(Left %cuboid% zone)'
+        # The numerical value for Afk Time. Available options: Any valid integer
+        AFK-TIME: 120
+        # The text or value for Afk Cuboid. Available options: Any valid string text
+        AFK-CUBOID: ''
+        # The text or value for Afk Location. Available options: Any valid string text
+        AFK-LOCATION: ''
+        # The text or value for Afk Message. Available options: Any valid string text
+        AFK-MESSAGE: '&7You have been moved to the AFK area for being inactive in the shard zone.'
+        # Determines whether Teleport On Afk is enabled or disabled. Available options: true, false
+        TELEPORT-ON-AFK: true
+        # Configuration section for Excluded Worlds.
+        EXCLUDED-WORLDS:
+        - duels
+        # The numerical value for Recent Movement Window. Available options: Any valid integer
+        RECENT-MOVEMENT-WINDOW: 15
+        # The numerical value for Min Movement Blocks. Available options: Any valid integer
+        MIN-MOVEMENT-BLOCKS: 5
+        # Determines whether Reset On Leave is enabled or disabled. Available options: true, false
+        RESET-ON-LEAVE: true
+        # The text or value for Paused Message. Available options: Any valid string text
+        PAUSED-MESSAGE: '&eMove to keep earning shards &7(%movement%/%required_movement%)'
+        # The text or value for Afk Paused Message. Available options: Any valid string text
+        AFK-PAUSED-MESSAGE: '&cYou are AFK. Move to resume shard gain'
+        # The text or value for Excluded World Message. Available options: Any valid string text
+        EXCLUDED-WORLD-MESSAGE: '&cShards are disabled in this world'
+  # Configuration section for Everywhere.
+  EVERYWHERE:
+    # Determines whether Enabled is enabled or disabled. Available options: true, false
+    ENABLED: false
+    # The numerical value for Every. Available options: Any valid integer
+    EVERY: 3
+    # The numerical value for Amount. Available options: Any valid integer
+    AMOUNT: 1
+    # The text or value for Required Permission. Available options: Any valid string text
+    REQUIRED-PERMISSION: ultimatedonutsmp.shards.everywhere
+    # The numerical value for Recent Movement Window. Available options: Any valid integer
+    RECENT-MOVEMENT-WINDOW: 15
+    # Determines whether Disable While In Shard Cuboid is enabled or disabled. Available options: true, false
+    DISABLE-WHILE-IN-SHARD-CUBOID: false
+    # The text or value for Received. Available options: Any valid string text
+    RECEIVED: '&#A303F9You received %amount% Shard &8[Everywhere] &7(Total: &#A303F9%total%&7)'
+    # The text or value for Received Boosted. Available options: Any valid string text
+    RECEIVED-BOOSTED: '&#A303F9You received %amount% Shards &7(&ax%multiplier%&7) &8[Everywhere] &7(Total: &#A303F9%total%&7)'
+    # Configuration section for Excluded Worlds.
+    EXCLUDED-WORLDS:
+    - duels
+  # The numerical value for Booster Multiplier. Available options: Any valid integer
+  BOOSTER-MULTIPLIER: 4
+  # Determines whether the shard booster also multiplies player kill rewards.
+  # Available options: true, false
+  BOOSTER-APPLIES-TO-KILLS: true
+  # The numerical value for Booster Kill Multiplier, used only for player kill rewards.
+  # Set to 0 to reuse Booster Multiplier. Available options: Any valid integer
+  BOOSTER-KILL-MULTIPLIER: 0
+# Configuration section for Key All.
+KEY-ALL:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # The numerical value for Every. Available options: Any valid integer
+  EVERY: 60
+  # Configuration section for Commands.
+  COMMANDS:
+  - ''
+  TYPE: RANDOM
+  # Configuration section for Random.
+  RANDOM:
+    # Configuration section for Keys.
+    KEYS:
+      # The numerical value for Common. Available options: Any valid integer
+      common: 60
+      # The numerical value for Rare. Available options: Any valid integer
+      rare: 30
+      # The numerical value for Epic. Available options: Any valid integer
+      epic: 10
+  # Configuration section for One Key Only.
+  ONE-KEY-ONLY:
+    # The text or value for Key. Available options: Any valid string text
+    KEY: common
+  # Configuration section for Notification.
+  NOTIFICATION:
+    # Determines whether Enabled is enabled or disabled. Available options: true, false
+    ENABLED: true
+    # Configuration section for Message.
+    MESSAGE:
+    - ''
+    - '&#00A4FCKey-All reward!'
+    - '&fYou received &b{amount}x {crate}&f key.'
+    - ''
+# Configuration section for Team.
+TEAM:
+  # The numerical value for Name Min Length. Available options: Any valid integer
+  NAME-MIN-LENGTH: 3
+  # The numerical value for Name Max Length. Available options: Any valid integer
+  NAME-MAX-LENGTH: 5
+  # The numerical value for Limit Members. Available options: Any valid integer
+  LIMIT-MEMBERS: 10
+  # Configuration section for Excluded Worlds where team homes cannot be set.
+  # Available options: List of world names
+  EXCLUDED-WORLDS: []
+# Configuration section for Leaderboard.
+LEADERBOARD:
+  # The numerical value for Update. Available options: Any valid integer
+  UPDATE: 10
+  # The numerical value for Npc Refresh. Available options: Any valid integer
+  NPC-REFRESH: 1
+# Configuration section for Tablist.
+TABLIST:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # Determines whether Luckperms Priority is enabled or disabled. Available options: true, false
+  LUCKPERMS-PRIORITY: true
+  # Determines whether Show Team Name is enabled or disabled. Available options: true, false
+  SHOW-TEAM-NAME: true
+  # The text or value for Icon Head Skin. Available options: Any valid string text
+  ICON-HEAD-SKIN: <head:%player_name%>
+  # The text or value for Icon Media. Available options: Any valid string text
+  ICON-MEDIA: 📹
+  # The text or value for Media Badge Format. Available options: Any valid string text
+  MEDIA-BADGE-FORMAT: '&d<icon_media>&#37BFF9+'
+  # The text or value for Media Badge Permission. Available options: Any valid string text
+  MEDIA-BADGE-PERMISSION: rank.media
+  # The text or value for Name Format. Available options: Any valid string text
+  NAME-FORMAT: <media_badge>&f<nick>%team_suffix%
+  # Configuration section for Header.
+  HEADER:
+  - ''
+  - <#FCD116>&lGhanaRealms</#FCD116>
+  - '&f%online% Players'
+  - ''
+  # Configuration section for Footer.
+  FOOTER:
+  - ''
+  - '   &#37BFF9/discord  /guide  /store   '
+  - '   &#6BF18Ddiscord.gg/z5uwKstfp4   '
+  - ''
+# Configuration section for Server List.
+SERVER-LIST:
+  # Determines whether Enabled is enabled or disabled. When true, the text under this server's name
+  # in the multiplayer list is taken from MOTD below instead of the motd line in server.properties.
+  # Set it to false to leave that entry alone. Available options: true, false
+  ENABLED: false
+  # Configuration section for Motd. The lines shown under the server name, written in the same
+  # colour codes as the rest of the plugin. The client only draws the first two. %online% becomes
+  # the number of players on the server and %max_players% the slot count, the same two tokens the
+  # tablist header takes. Maintenance mode keeps its own text while it is on, set in network.yml
+  MOTD:
+  - '&#FCD116&l&nGhanaRealms &f&lSMP'
+  - '&7%online%&8/&7%max_players% &7online &8| &fdiscord.gg/z5uwKstfp4'
+# Configuration section for Optimization.
+OPTIMIZATION:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # The numerical value for Monitor Interval Ticks. Available options: Any valid integer
+  MONITOR-INTERVAL-TICKS: 100
+  # The decimal value for Tps Warn Threshold. Available options: Any decimal number
+  TPS-WARN-THRESHOLD: 18.5
+  # The decimal value for Tps Critical Threshold. Available options: Any decimal number
+  TPS-CRITICAL-THRESHOLD: 16.0
+  # The decimal value for Mspt Warn Threshold. Available options: Any decimal number
+  MSPT-WARN-THRESHOLD: 45.0
+  # The decimal value for Mspt Critical Threshold. Available options: Any decimal number
+  MSPT-CRITICAL-THRESHOLD: 55.0
+  # The numerical value for Recovery Samples. Available options: Any valid integer
+  RECOVERY-SAMPLES: 3
+  # Determines whether Log State Changes is enabled or disabled. Available options: true, false
+  LOG-STATE-CHANGES: true
+  # Configuration section for Adaptive Tasks. Each entry below decides how often one task is
+  # allowed to run while the server is struggling. None of them switch a feature on or off; the
+  # switches for that live in their own sections, either at the top level of this file or in the
+  # file named after the feature.
+  ADAPTIVE-TASKS:
+    # Configuration section for Scoreboard.
+    SCOREBOARD:
+      # Whether the scoreboard task may be slowed down while the server is under load. Setting this
+      # to false removes the slowdown and lets the task keep running at full rate; it does not turn
+      # the scoreboard off. That switch is SCOREBOARD.ENABLED in scoreboard.yml.
+      # Available options: true, false
+      ENABLED: true
+      # The numerical value for Warn Min Interval Ticks. Available options: Any valid integer
+      WARN-MIN-INTERVAL-TICKS: 4
+      # The numerical value for Critical Min Interval Ticks. Available options: Any valid integer
+      CRITICAL-MIN-INTERVAL-TICKS: 10
+    # Configuration section for Tablist.
+    TABLIST:
+      # Whether the tablist task may be slowed down while the server is under load. Setting this to
+      # false removes the slowdown and lets the task keep running at full rate; it does not turn the
+      # tablist off. That switch is the TABLIST section near the top of this file.
+      # Available options: true, false
+      ENABLED: true
+      # The numerical value for Warn Min Interval Ticks. Available options: Any valid integer
+      WARN-MIN-INTERVAL-TICKS: 80
+      # The numerical value for Critical Min Interval Ticks. Available options: Any valid integer
+      CRITICAL-MIN-INTERVAL-TICKS: 140
+    # Configuration section for Lunar Teammates.
+    LUNAR-TEAMMATES:
+      # Whether the lunar teammates task may be slowed down while the server is under load. Setting
+      # this to false removes the slowdown and lets the task keep running at full rate; it does not
+      # turn the lunar teammate overlay off.
+      # Available options: true, false
+      ENABLED: true
+      # The numerical value for Warn Min Interval Ticks. Available options: Any valid integer
+      WARN-MIN-INTERVAL-TICKS: 40
+      # The numerical value for Critical Min Interval Ticks. Available options: Any valid integer
+      CRITICAL-MIN-INTERVAL-TICKS: 100
+# Configuration section for Clear Lag.
+CLEAR-LAG:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # The numerical value for Every. Available options: Any valid integer
+  EVERY: 5
+  # Determines whether Animals is enabled or disabled. Available options: true, false
+  ANIMALS: false
+  # Determines whether Monsters is enabled or disabled. Available options: true, false
+  MONSTERS: false
+  # Determines whether Dropped Items is enabled or disabled. Available options: true, false
+  DROPPED-ITEMS: true
+  # The numerical value for Min Item Age Seconds. Dropped items younger than this are kept,
+  # so items dropped just before a cleanup are not wiped. Set to 0 to disable the delay.
+  # Available options: Any valid integer
+  MIN-ITEM-AGE-SECONDS: 60
+  # Configuration section for Excluded Worlds.
+  EXCLUDED-WORLDS:
+  - duels
+  EXCLUDE-NAMED: true
+  EXCLUDE-TAMED: true
+  EXCLUDE-VILLAGERS: true
+  # Configuration section for Excluded Entity Types. Entity types listed here are never
+  # cleared, for example ALLAY or IRON_GOLEM.
+  EXCLUDED-ENTITY-TYPES: []
+  # Configuration section for Excluded Item Materials. Dropped items of these materials are
+  # never cleared, for example NETHERITE_INGOT or ELYTRA.
+  EXCLUDED-ITEM-MATERIALS: []
+# Configuration section for Combat Manager.
+COMBAT-MANAGER:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # The numerical value for Cooldown. Available options: Any valid integer
+  COOLDOWN: 16
+  # Determines whether Kill On Logout is enabled or disabled. When true, a player who
+  # disconnects while their combat tag is still running is killed, so logging out mid-fight
+  # is not a way to escape a fight. Available options: true, false
+  KILL-ON-LOGOUT: false
+  # The text or value for Action Bar. Available options: Any valid string text
+  ACTION-BAR: '&fCombat: &b${time}s'
+  # Determines whether Mobs is enabled or disabled. When true, damage from mobs also puts
+  # players into combat, not just damage dealt by other players. Available options: true, false
+  MOBS: false
+  # Determines whether Ender Crystal is enabled or disabled. Available options: true, false
+  ENDER-CRYSTAL: true
+  # Determines whether Ender Pearl is enabled or disabled. Available options: true, false
+  ENDER-PEARL: true
+  # Determines whether Respawn Anchor is enabled or disabled. Available options: true, false
+  RESPAWN-ANCHOR: true
+  # The text or value for Block Message. Available options: Any valid string text
+  BLOCK-MESSAGE: '&cYou can''t use this command in your current status.'
+  # Configuration section for Block Commands.
+  BLOCK-COMMANDS:
+  - /spawn
+  - /afk
+  - /rtp
+  - /homes
+  - /tpa
+  # Configuration section for Excluded Worlds.
+  EXCLUDED-WORLDS:
+  - duels
+# Configuration section for Rtp Zone.
+RTP-ZONE:
+  # Determines whether Enabled is enabled or disabled. Available options: true, false
+  ENABLED: true
+  # The text or value for Cuboid. Available options: Any valid string text
+  CUBOID: ''
+  # The numerical value for Every. Available options: Any valid integer
+  EVERY: 30
+  TITLE: '&c&lRTP Zone'
+  # The text or value for Sub Title. Available options: Any valid string text
+  SUB-TITLE: '&fTeleporting in %countdown%'
+  # The text or value for Cancelled Message. Available options: Any valid string text
+  CANCELLED-MESSAGE: '&cRTP cancelled because you left the zone.'
+  # The text or value for Failed Message. Available options: Any valid string text
+  FAILED-MESSAGE: '&cCould not find a safe RTP zone location.'
+  # The text or value for Success Message. Available options: Any valid string text
+  SUCCESS-MESSAGE: ''
+  # Configuration section for World.
+  WORLD:
+    NAME: world
+    # The numerical value for Center X. Available options: Any valid integer
+    CENTER-X: 0
+    # The numerical value for Center Z. Available options: Any valid integer
+    CENTER-Z: 0
+    # The numerical value for Min Radius. Available options: Any valid integer
+    MIN-RADIUS: 500
+    # The numerical value for Max Radius. Available options: Any valid integer
+    MAX-RADIUS: 2000
+  # The numerical value for Title Fade Out Ticks. Available options: Any valid integer
+  TITLE-FADE-OUT-TICKS: 10
+# Configuration section for First Join Rtp. Drops brand new players at a random location
+# the first time they join instead of leaving them on the vanilla world spawn. The search
+# ignores RTP cooldowns, playtime requirements, and the RTP queue, but it does require the
+# RTP feature itself to be enabled.
+FIRST-JOIN-RTP:
+  # Determines whether First Join Rtp is enabled or disabled. Takes priority over Settings
+  # Teleport Spawn On First Join. Available options: true, false
+  ENABLED: false
+  # Determines whether the player is sent to the spawn location when no safe random
+  # location can be found. Available options: true, false
+  FALLBACK-TO-SPAWN: true
+  # The text or value for Searching Message, sent while the safe location is being looked
+  # up. Set to '' to disable. Available options: Any valid string text
+  SEARCHING-MESSAGE: '&7Finding you a safe place to start...'
+  # The text or value for Success Message, sent once the player has been dropped.
+  # Supports {world}, {x}, {y}, {z}. Set to '' to disable. Available options: Any valid
+  # string text
+  SUCCESS-MESSAGE: '&aWelcome! You spawned at &fX:{x} Y:{y} Z:{z}&a.'
+  # The text or value for Failed Message, sent when no safe location could be found. Set
+  # to '' to disable. Available options: Any valid string text
+  FAILED-MESSAGE: '&cCould not find a random spawn location for you.'
+  # Configuration section for World.
+  WORLD:
+    # The world to drop new players in. Leave empty to use the world they join in.
+    # Available options: Any valid string text
+    NAME: ''
+    # The numerical value for Center X. Available options: Any valid integer
+    CENTER-X: 0
+    # The numerical value for Center Z. Available options: Any valid integer
+    CENTER-Z: 0
+    # The numerical value for Min Radius. Available options: Any valid integer
+    MIN-RADIUS: 500
+    # The numerical value for Max Radius. Available options: Any valid integer
+    MAX-RADIUS: 5000
+# Configuration section for Respawn Rtp. Sends players back out into the world at a random
+# location after they die, instead of leaving them standing on spawn. The search ignores RTP
+# cooldowns, playtime requirements, and the RTP queue, but it does require the RTP feature
+# itself to be enabled. Players who keep their bed or anchor respawn under Settings Respawn
+# On Bed are left alone.
+RESPAWN-RTP:
+  # Determines whether Respawn Rtp is enabled or disabled. Available options: true, false
+  ENABLED: false
+  # The text or value for Searching Message, sent while the safe location is being looked
+  # up. Set to '' to disable. Available options: Any valid string text
+  SEARCHING-MESSAGE: '&7Finding you a safe place to respawn...'
+  # The text or value for Success Message, sent once the player has been dropped. Supports
+  # {world}, {x}, {y}, {z}. Set to '' to disable. Available options: Any valid string text
+  SUCCESS-MESSAGE: '&aYou respawned at &fX:{x} Y:{y} Z:{z}&a.'
+  # The text or value for Failed Message, sent when no safe location could be found. The
+  # player is left on the normal respawn location. Set to '' to disable. Available options:
+  # Any valid string text
+  FAILED-MESSAGE: '&cCould not find a random respawn location for you.'
+  # Configuration section for World.
+  WORLD:
+    # The world to drop dead players in. Leave empty to use the world they died in.
+    # Available options: Any valid string text
+    NAME: ''
+    # Determines whether the boundaries from World Settings in rtp.yml are reused for that
+    # world. The Center X, Center Z, Min Radius, and Max Radius below are only read when
+    # this is false, or when the world has no entry in rtp.yml. Available options: true,
+    # false
+    USE-RTP-BOUNDS: true
+    # The numerical value for Center X. Available options: Any valid integer
+    CENTER-X: 0
+    # The numerical value for Center Z. Available options: Any valid integer
+    CENTER-Z: 0
+    # The numerical value for Min Radius. Available options: Any valid integer
+    MIN-RADIUS: 500
+    # The numerical value for Max Radius. Available options: Any valid integer
+    MAX-RADIUS: 5000
+# Configuration section for Teleport Cooldown.
+TELEPORT-COOLDOWN:
+  # The numerical value for Home. Available options: Any valid integer
+  HOME: 5
+  # The numerical value for Team Home. Available options: Any valid integer
+  TEAM-HOME: 5
+  # The numerical value for Spawn. Available options: Any valid integer
+  SPAWN: 5
+  # The numerical value for Afk. Available options: Any valid integer
+  AFK: 5
+  # The numerical value for Tpa. Available options: Any valid integer
+  TPA: 5
+  # The numerical value for Warp. Available options: Any valid integer
+  WARP: 5
+  # The numerical value for Rtp. Available options: Any valid integer
+  RTP: 5
+# Configuration section for Bounty.
+BOUNTY:
+  # Configuration section for Excluded Worlds.
+  EXCLUDED-WORLDS:
+  - duels
+# Configuration section for Amethyst Tools.
+AMETHYST-TOOLS:
+  # Configuration section for Excluded Worlds.
+  EXCLUDED-WORLDS:
+  - duels
+  # Configuration section for Pickaxe.
+  PICKAXE:
+    # Configuration section for Particle.
+    PARTICLE:
+      NAME: FALLING_DUST
+      MATERIAL: PURPLE_CONCRETE_POWDER
+      # The numerical value for Amount. Available options: Any valid integer
+      AMOUNT: 10
+    # Configuration section for Disabled Blocks.
+    DISABLED-BLOCKS:
+    - GRASS_BLOCK
+    - DIRT_PATH
+    - DIRT
+    - COARSE_DIRT
+    - ROOTED_DIRT
+    - CLAY
+    - FARMLAND
+    - SAND
+    - RED_SAND
+    - GRAVEL
+    - SPAWNER
+    NAME: '&#A303F9Amethyst Pickaxe'
+    LORE:
+    - '&79 Blocks Per Break'
+    - '&8Self Destruct'
+    - '&8{time}'
+    # Configuration section for Enchantments.
+    ENCHANTMENTS:
+    - MENDING:1
+    - EFFICIENCY:5
+    - UNBREAKING:3
+  # Configuration section for Axe.
+  AXE:
+    # Configuration section for Particle.
+    PARTICLE:
+      NAME: FALLING_DUST
+      MATERIAL: PURPLE_CONCRETE_POWDER
+      # The numerical value for Amount. Available options: Any valid integer
+      AMOUNT: 10
+    NAME: '&#A303F9Amethyst Axe'
+    LORE:
+    - '&7Breaks Trees Instantly'
+    - '&8Self Destruct'
+    - '&8{time}'
+    # Configuration section for Enchantments.
+    ENCHANTMENTS:
+    - MENDING:1
+    - EFFICIENCY:5
+    - UNBREAKING:3
+    - SILK_TOUCH:1
+  # Configuration section for Sellaxe.
+  SELLAXE:
+    # Configuration section for Particle.
+    PARTICLE:
+      NAME: FALLING_DUST
+      MATERIAL: PURPLE_CONCRETE_POWDER
+      # The numerical value for Amount. Available options: Any valid integer
+      AMOUNT: 10
+    NAME: '&#A303F9Amethyst Sell Axe'
+    LORE:
+    - '&7Instantly Sells All Items in A Chest'
+    - '&8Self Destruct'
+    - '&8{time}'
+    # Configuration section for Enchantments.
+    ENCHANTMENTS:
+    - MENDING:1
+    - EFFICIENCY:5
+    - UNBREAKING:3
+  # Configuration section for Shovel.
+  SHOVEL:
+    # Configuration section for Particle.
+    PARTICLE:
+      NAME: FALLING_DUST
+      MATERIAL: PURPLE_CONCRETE_POWDER
+      # The numerical value for Amount. Available options: Any valid integer
+      AMOUNT: 10
+    # Configuration section for Allowed Blocks.
+    ALLOWED-BLOCKS:
+    - GRASS_BLOCK
+    - DIRT_PATH
+    - DIRT
+    - COARSE_DIRT
+    - ROOTED_DIRT
+    - CLAY
+    - FARMLAND
+    - SAND
+    - RED_SAND
+    - GRAVEL
+    NAME: '&#A303F9Amethyst Shovel'
+    LORE:
+    - '&79 Blocks Per Break'
+    - '&8Self Destruct'
+    - '&8{time}'
+    # Configuration section for Enchantments.
+    ENCHANTMENTS:
+    - MENDING:1
+    - EFFICIENCY:5
+    - UNBREAKING:3
+  # Configuration section for Bucket.
+  BUCKET:
+    # Configuration section for Particle.
+    PARTICLE:
+      NAME: FALLING_DUST
+      MATERIAL: PURPLE_CONCRETE_POWDER
+      # The numerical value for Amount. Available options: Any valid integer
+      AMOUNT: 10
+    NAME: '&#A303F9Amethyst Bucket'
+    LORE:
+    - '&7Drains 27 Water At Once'
+    - '&8Self Destruct'
+    - '&8{time}'
+    # A list configuration for Enchantments. Available options: Multiple items
+    ENCHANTMENTS: []
+  # Configuration section for Booster.
+  BOOSTER:
+    # Configuration section for Particle.
+    PARTICLE:
+      NAME: FALLING_DUST
+      MATERIAL: PURPLE_CONCRETE_POWDER
+      # The numerical value for Amount. Available options: Any valid integer
+      AMOUNT: 10
+    NAME: '&#A303F9Shard Booster'
+    LORE:
+    - '&74x Shard Production for 24 hours'
+    - '&8Self Destruct'
+    - '&8{time}'
+    # A list configuration for Enchantments. Available options: Multiple items
+    ENCHANTMENTS: []
+# Configuration section for Commands.
+# Configuration section for Voice Chat.
+VOICE-CHAT:
+  # Determines whether Prompt On Join is enabled or disabled. Available options: true, false
+  PROMPT-ON-JOIN: true
+  # The number for Prompt Delay Ticks. Available options: Any whole number
+  PROMPT-DELAY-TICKS: 40
+  # Determines whether Mute Until Accepted is enabled or disabled. Available options: true, false
+  MUTE-UNTIL-ACCEPTED: true
+COMMANDS:
+  # Determines whether Chat is enabled or disabled. Available options: true, false
+  CHAT: true
+  # Determines whether Ignore is enabled or disabled. Available options: true, false
+  IGNORE: true
+  # Determines whether Message is enabled or disabled. Available options: true, false
+  MESSAGE: true
+  # Determines whether Bounty is enabled or disabled. Available options: true, false
+  BOUNTY: true
+  # Determines whether Cuboid is enabled or disabled. Available options: true, false
+  CUBOID: true
+  # Determines whether Afk is enabled or disabled. Available options: true, false
+  AFK: true
+  # Determines whether Shards is enabled or disabled. Available options: true, false
+  SHARDS: true
+  # Determines whether Warp is enabled or disabled. Available options: true, false
+  WARP: true
+  # Determines whether Team is enabled or disabled. Available options: true, false
+  TEAM: true
+  # Determines whether Billford is enabled or disabled. Available options: true, false
+  BILLFORD: true
+  # Determines whether Home is enabled or disabled. Available options: true, false
+  HOME: true
+  # Determines whether Leaderboards is enabled or disabled. Available options: true, false
+  LEADERBOARDS: true
+  # Determines whether Night Vision is enabled or disabled. Available options: true, false
+  NIGHT-VISION: true
+  # Determines whether Phantom is enabled or disabled. Available options: true, false
+  PHANTOM: true
+  # Determines whether Rtp is enabled or disabled. Available options: true, false
+  RTP: true
+  # Determines whether Sell is enabled or disabled. Available options: true, false
+  SELL: true
+  # Determines whether Settings is enabled or disabled. Available options: true, false
+  SETTINGS: true
+  # Determines whether Shop is enabled or disabled. Available options: true, false
+  SHOP: true
+  # Determines whether Enderchest is enabled or disabled. Available options: true, false
+  ENDERCHEST: true
+  # Determines whether Gamemode is enabled or disabled. Available options: true, false
+  GAMEMODE: true
+  # Determines whether Social is enabled or disabled. Available options: true, false
+  SOCIAL: true
+  # Determines whether Spawn is enabled or disabled. Available options: true, false
+  SPAWN: true
+  # Determines whether Stats is enabled or disabled. Available options: true, false
+  STATS: true
+  # Determines whether Tpa is enabled or disabled. Available options: true, false
+  TPA: true
+  # Determines whether Tpauto is enabled or disabled. Available options: true, false
+  TPAUTO: true
+  # Determines whether Findplayer is enabled or disabled. Available options: true, false
+  FINDPLAYER: true
+  # Determines whether Crate is enabled or disabled. Available options: true, false
+  CRATE: true
+  # Determines whether Shardpay is enabled or disabled. Available options: true, false
+  SHARDPAY: false
+  # Determines whether Ranks is enabled or disabled. Available options: true, false
+  RANKS: true
+  # Determines whether Rules is enabled or disabled. Available options: true, false
+  RULES: true
+  # Determines whether Help is enabled or disabled. Available options: true, false
+  HELP: true
+  # Determines whether Servers is enabled or disabled. Available options: true, false
+  SERVERS: true

@@ -1,0 +1,170 @@
+# Walk-in server shops. Each CATEGORIES entry is one shop. Bind a chest to it with:
+#   /servershop create <category>      (look at an EMPTY chest/barrel)
+#   /servershop create hub             (a chest that lists every category)
+#
+# ITEMS: material = Bukkit material name; buy = price to BUY one from the shop;
+#        sell = price the shop pays for one. Use -1 (or leave out) to disable a side.
+# Prices are in the Vault economy (the ₵ you earn in-game) - these numbers are PLACEHOLDERS, tune
+# them to your economy. Edit, then /servershop reload. Selling only accepts plain (un-renamed,
+# un-enchanted) items. 'hub' is a reserved id. Max 28 categories in the hub, 45 items per menu page.
+
+CATEGORIES:
+  blocks:
+    TITLE: '&6&lBuilding Blocks'
+    ICON: BRICKS
+    ITEMS:
+      - {material: COBBLESTONE, buy: 2, sell: 0.25}
+      - {material: STONE, buy: 3, sell: 0.4}
+      - {material: STONE_BRICKS, buy: 4, sell: 0.5}
+      - {material: DEEPSLATE, buy: 4, sell: 0.5}
+      - {material: DIRT, buy: 1, sell: 0.1}
+      - {material: GRAVEL, buy: 1.5, sell: 0.2}
+      - {material: SAND, buy: 1.5, sell: 0.2}
+      - {material: SANDSTONE, buy: 3, sell: 0.4}
+      - {material: BRICKS, buy: 8, sell: 1}
+      - {material: GLASS, buy: 4, sell: 0.5}
+      - {material: OAK_LOG, buy: 6, sell: 0.75}
+      - {material: SPRUCE_LOG, buy: 6, sell: 0.75}
+      - {material: BIRCH_LOG, buy: 6, sell: 0.75}
+      - {material: ACACIA_LOG, buy: 6, sell: 0.75}
+      - {material: OAK_PLANKS, buy: 2, sell: 0.25}
+      - {material: SPRUCE_PLANKS, buy: 2, sell: 0.25}
+      - {material: WHITE_WOOL, buy: 6, sell: 0.75}
+      - {material: TERRACOTTA, buy: 6, sell: 0.75}
+      - {material: QUARTZ_BLOCK, buy: 20, sell: 2.5}
+      - {material: PRISMARINE, buy: 12, sell: 1.5}
+      - {material: SMOOTH_STONE, buy: 5, sell: 0.6}
+      - {material: BOOKSHELF, buy: 30, sell: 4}
+  ores:
+    TITLE: '&b&lOres & Minerals'
+    ICON: DIAMOND
+    ITEMS:
+      - {material: COAL, buy: 4, sell: 0.5}
+      - {material: COPPER_INGOT, buy: 5, sell: 0.6}
+      - {material: IRON_INGOT, buy: 12, sell: 1.5}
+      - {material: GOLD_INGOT, buy: 20, sell: 2.5}
+      - {material: REDSTONE, buy: 5, sell: 0.6}
+      - {material: LAPIS_LAZULI, buy: 6, sell: 0.75}
+      - {material: QUARTZ, buy: 6, sell: 0.75}
+      - {material: DIAMOND, buy: 150, sell: 18}
+      - {material: EMERALD, buy: 100, sell: 12}
+      - {material: OBSIDIAN, buy: 25, sell: 3}
+      - {material: AMETHYST_SHARD, buy: 8, sell: 1}
+      - {material: IRON_BLOCK, buy: 100, sell: 12}
+      - {material: GOLD_BLOCK, buy: 170, sell: 20}
+  food:
+    TITLE: '&a&lFood Market'
+    ICON: COOKED_BEEF
+    ITEMS:
+      - {material: BREAD, buy: 4, sell: 0.5}
+      - {material: APPLE, buy: 3, sell: 0.4}
+      - {material: CARROT, buy: 2, sell: 0.25}
+      - {material: POTATO, buy: 2, sell: 0.25}
+      - {material: BAKED_POTATO, buy: 4, sell: 0.5}
+      - {material: COOKED_BEEF, buy: 8, sell: 1}
+      - {material: COOKED_PORKCHOP, buy: 8, sell: 1}
+      - {material: COOKED_CHICKEN, buy: 6, sell: 0.75}
+      - {material: COOKED_MUTTON, buy: 7, sell: 0.9}
+      - {material: COOKED_COD, buy: 5, sell: 0.6}
+      - {material: COOKED_SALMON, buy: 6, sell: 0.75}
+      - {material: GOLDEN_CARROT, buy: 15, sell: 2}
+      - {material: PUMPKIN_PIE, buy: 6, sell: 0.75}
+      - {material: HONEY_BOTTLE, buy: 8, sell: 1}
+      - {material: GOLDEN_APPLE, buy: 120, sell: 15}
+      - {material: MILK_BUCKET, buy: 10, sell: 1.2}
+  farming:
+    TITLE: '&2&lFarm Supplies'
+    ICON: WHEAT
+    ITEMS:
+      - {material: WHEAT_SEEDS, buy: 1, sell: 0.1}
+      - {material: BEETROOT_SEEDS, buy: 1, sell: 0.1}
+      - {material: PUMPKIN_SEEDS, buy: 2, sell: 0.2}
+      - {material: MELON_SEEDS, buy: 2, sell: 0.2}
+      - {material: WHEAT, buy: 3, sell: 0.4}
+      - {material: SUGAR_CANE, buy: 3, sell: 0.4}
+      - {material: BONE_MEAL, buy: 4, sell: 0.5}
+      - {material: OAK_SAPLING, buy: 3, sell: 0.4}
+      - {material: COCOA_BEANS, buy: 3, sell: 0.4}
+      - {material: PUMPKIN, buy: 5, sell: 0.6}
+      - {material: MELON_SLICE, buy: 1, sell: 0.1}
+      - {material: HAY_BLOCK, buy: 25, sell: 3}
+      - {material: LEATHER, buy: 5, sell: 0.6}
+      - {material: EGG, buy: 2, sell: 0.2}
+      - {material: BUCKET, buy: 40, sell: 5}
+      - {material: WATER_BUCKET, buy: 45, sell: 5}
+  tools:
+    TITLE: '&e&lTools & Weapons'
+    ICON: IRON_PICKAXE
+    ITEMS:
+      - {material: STONE_PICKAXE, buy: 15, sell: 2}
+      - {material: IRON_PICKAXE, buy: 60, sell: 7}
+      - {material: IRON_AXE, buy: 60, sell: 7}
+      - {material: IRON_SHOVEL, buy: 30, sell: 4}
+      - {material: IRON_HOE, buy: 40, sell: 5}
+      - {material: IRON_SWORD, buy: 50, sell: 6}
+      - {material: DIAMOND_PICKAXE, buy: 300, sell: 35}
+      - {material: DIAMOND_AXE, buy: 300, sell: 35}
+      - {material: DIAMOND_SWORD, buy: 250, sell: 30}
+      - {material: BOW, buy: 40, sell: 5}
+      - {material: CROSSBOW, buy: 50, sell: 6}
+      - {material: ARROW, buy: 2, sell: 0.25}
+      - {material: SHIELD, buy: 45, sell: 5}
+      - {material: FISHING_ROD, buy: 30, sell: 4}
+      - {material: SHEARS, buy: 35, sell: 4}
+      - {material: FLINT_AND_STEEL, buy: 25, sell: 3}
+  armor:
+    TITLE: '&c&lArmor'
+    ICON: IRON_CHESTPLATE
+    ITEMS:
+      - {material: LEATHER_HELMET, buy: 10, sell: 1}
+      - {material: LEATHER_CHESTPLATE, buy: 16, sell: 2}
+      - {material: LEATHER_LEGGINGS, buy: 14, sell: 1.75}
+      - {material: LEATHER_BOOTS, buy: 8, sell: 1}
+      - {material: IRON_HELMET, buy: 50, sell: 6}
+      - {material: IRON_CHESTPLATE, buy: 80, sell: 10}
+      - {material: IRON_LEGGINGS, buy: 70, sell: 8}
+      - {material: IRON_BOOTS, buy: 40, sell: 5}
+      - {material: DIAMOND_HELMET, buy: 250, sell: 30}
+      - {material: DIAMOND_CHESTPLATE, buy: 400, sell: 48}
+      - {material: DIAMOND_LEGGINGS, buy: 350, sell: 42}
+      - {material: DIAMOND_BOOTS, buy: 200, sell: 24}
+  redstone:
+    TITLE: '&4&lRedstone'
+    ICON: REDSTONE
+    ITEMS:
+      - {material: REDSTONE, buy: 5, sell: 0.6}
+      - {material: REPEATER, buy: 15, sell: 2}
+      - {material: COMPARATOR, buy: 25, sell: 3}
+      - {material: PISTON, buy: 25, sell: 3}
+      - {material: STICKY_PISTON, buy: 35, sell: 4}
+      - {material: OBSERVER, buy: 25, sell: 3}
+      - {material: HOPPER, buy: 40, sell: 5}
+      - {material: DISPENSER, buy: 30, sell: 4}
+      - {material: DROPPER, buy: 25, sell: 3}
+      - {material: LEVER, buy: 3, sell: 0.4}
+      - {material: STONE_BUTTON, buy: 2, sell: 0.25}
+      - {material: REDSTONE_TORCH, buy: 6, sell: 0.75}
+      - {material: REDSTONE_LAMP, buy: 20, sell: 2.5}
+      - {material: NOTE_BLOCK, buy: 15, sell: 2}
+      - {material: TARGET, buy: 20, sell: 2.5}
+  utility:
+    TITLE: '&d&lGeneral Store'
+    ICON: CHEST
+    ITEMS:
+      - {material: TORCH, buy: 1, sell: 0.1}
+      - {material: LADDER, buy: 2, sell: 0.25}
+      - {material: CHEST, buy: 12, sell: 1.5}
+      - {material: BARREL, buy: 12, sell: 1.5}
+      - {material: FURNACE, buy: 10, sell: 1.2}
+      - {material: CRAFTING_TABLE, buy: 8, sell: 1}
+      - {material: WHITE_BED, buy: 30, sell: 4}
+      - {material: ANVIL, buy: 120, sell: 15}
+      - {material: ENCHANTING_TABLE, buy: 400, sell: 50}
+      - {material: ENDER_PEARL, buy: 60, sell: 7}
+      - {material: ENDER_CHEST, buy: 250, sell: 30}
+      - {material: EXPERIENCE_BOTTLE, buy: 25, sell: 3}
+      - {material: NAME_TAG, buy: 50, sell: 6}
+      - {material: LEAD, buy: 10, sell: 1.2}
+      - {material: COMPASS, buy: 25, sell: 3}
+      - {material: CLOCK, buy: 25, sell: 3}
+      - {material: FIREWORK_ROCKET, buy: 6, sell: 0.75}
