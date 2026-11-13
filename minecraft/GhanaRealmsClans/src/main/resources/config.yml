@@ -1,0 +1,8 @@
+BRIDGE:
+  ENABLED: true
+  STORE-BASE-URL: "https://your-store.example.com"
+  BRIDGE-SECRET: "change-me"   # must equal MINECRAFT_BRIDGE_SECRET on the store
+  SYNC-INTERVAL-SECONDS: 300
+CLANS:
+  MAX-MEMBERS: 20
+  MAX-TAG-LENGTH: 5

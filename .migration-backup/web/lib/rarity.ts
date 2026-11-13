@@ -15,11 +15,11 @@ export const RARITY_STYLE: Record<string, string> = {
   LEGENDARY: "text-gr-gold",
 };
 
-export const CATEGORY_ORDER = ["bundle", "rank", "package", "armour", "weapon", "tool", "rare", "enchantment", "food", "potion", "kit", "resource", "utility", "cosmetic", "item"];
+export const CATEGORY_ORDER = ["bundle", "rank", "package", "armour", "weapon", "tool", "rare", "enchantment", "food", "potion", "building", "cosmetic", "item"];
 export const CATEGORY_TITLE: Record<string, string> = {
   bundle: "Bundles - Best Value", rank: "Ranks", package: "Packages", armour: "Kumasi Armour House",
   weapon: "Weapons & Combat", tool: "Tools & Mining", rare: "The Elytra Centre & Rare Items",
-  enchantment: "The Enchantment House", food: "Kejetia Food Market", potion: "Potions & Brewing", kit: "Kits", resource: "Resource Packs", utility: "Utilities",
+  enchantment: "The Enchantment House", food: "Kejetia Food Market", potion: "Potions & Brewing", building: "Tema Building Materials Market",
   cosmetic: "Adinkra Cosmetics", item: "Items",
 };
 export const fmtCedi = (pesewas: number) => `GH₵${(pesewas / 100).toFixed(2)}`;

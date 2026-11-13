@@ -1,0 +1,53 @@
+{
+  // GhanaRealms Store — Cloudflare Workers config (OpenNext).
+  //
+  // This file did not exist in the uploaded project, so it is written from
+  // scratch using the documented OpenNext-Cloudflare + Hyperdrive pattern —
+  // it is NOT a rescue of a previously-failing config. Not run/verified in
+  // this environment (no internet access to install wrangler/OpenNext or
+  // execute a real build) — verify with the commands in DEPLOYMENT.md.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ghanarealms-store",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  // nodejs_compat is required for `pg` (and Next.js itself) to use Node
+  // builtins like net/tls/crypto under Workers. This, together with
+  // Hyperdrive (below), is what actually avoids needing pg-cloudflare's own
+  // raw-socket shim at runtime — Hyperdrive terminates the real TCP
+  // connection to Postgres on Cloudflare's side and hands the Worker a
+  // local connection string to talk to instead.
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  // Hyperdrive is Cloudflare's supported way to reach a normal TCP
+  // PostgreSQL server (Neon, Supabase, RDS, a VPS-hosted Postgres, etc.)
+  // from a Worker. Replace `id` with the real Hyperdrive config ID from:
+  //   wrangler hyperdrive create ghanarealms-store-db \
+  //     --connection-string="$DATABASE_URL"
+  // which prints the ID to put here. `localConnectionString` is used only
+  // by `wrangler dev`/local preview, never in production.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "REPLACE_WITH_REAL_HYPERDRIVE_ID",
+      "localConnectionString": "postgresql://ghanarealms:CHANGE_ME@localhost:5432/ghanarealms_store"
+    }
+  ],
+
+  "observability": {
+    "enabled": true
+  },
+
+  // Secrets (Paystack keys, JWT secret, bridge secret) are NOT declared
+  // here — wrangler.jsonc is typically committed to git, and secrets must
+  // never be. Set them with `wrangler secret put <NAME>` or in the
+  // Cloudflare dashboard's Workers → Settings → Variables & Secrets screen.
+  // See DEPLOYMENT.md for the exact list and non-interactive setup.
+  "vars": {
+    "STORE_BASE_URL": "https://REPLACE_WITH_YOUR_DOMAIN"
+  }
+}

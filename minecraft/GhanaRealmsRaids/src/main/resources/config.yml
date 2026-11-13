@@ -1,0 +1,37 @@
+WORLDS: [world]
+MIN-DISTANCE-FROM-SPAWN: 200      # no events near spawn / safe zones
+NO-BLOCK-DAMAGE: true             # event creepers don't break blocks
+DROPS: true                       # event mobs drop their normal loot
+
+RAIDS:
+  ENABLED: true
+  CHANCE-PER-MINUTE: 0.04         # ~ one raid every ~25 min somewhere on the server
+  MAX-CONCURRENT: 2
+  WAVES: 3
+  MOBS-PER-WAVE: [5, 8, 12]       # count for wave 1,2,3 (last value repeats)
+  WAVE-MOBS:                      # TYPE:weight, picked by wave index (last list repeats)
+    - ["ZOMBIE:5", "SKELETON:3", "SPIDER:2"]
+    - ["ZOMBIE:3", "SKELETON:3", "CREEPER:2", "VINDICATOR:2"]
+    - ["VINDICATOR:4", "PILLAGER:3", "WITCH:2", "RAVAGER:1"]
+  TIME-LIMIT-MINUTES: 10
+  REWARD:
+    ITEMS: ["DIAMOND:2-4", "GOLDEN_APPLE:2-3", "EXPERIENCE_BOTTLE:16-32"]
+    COMMANDS: []                  # e.g. "eco give {player} 500"  ({player} = recipient)
+  REWARD-RADIUS: 40               # everyone this close to the raid target at the end is rewarded
+
+APOCALYPSE:
+  ENABLED: true
+  CHANCE-PER-MINUTE: 0.004
+  COOLDOWN-HOURS: 3               # minimum gap between apocalypses
+  DURATION-MINUTES: 10
+  FORCE-NIGHT-AND-STORM: true     # stops zombies/skeletons burning in daylight
+  MOBS: ["ZOMBIE:6", "SKELETON:4", "SPIDER:3", "CREEPER:2", "HUSK:2", "WITCH:1"]
+  CAP-PER-PLAYER: 14              # event mobs alive within 40 blocks of a player
+  BATCH-PER-PLAYER: 3             # spawned every 5 seconds until the cap
+  MIN-KILLS-FOR-PARTICIPANT: 10
+  REWARD-TOP:                     # top 3 killers
+    ITEMS: ["DIAMOND:4-8", "NETHERITE_SCRAP:1-2", "ENCHANTED_GOLDEN_APPLE:1-1"]
+    COMMANDS: []
+  REWARD-PARTICIPANT:
+    ITEMS: ["DIAMOND:1-2", "GOLDEN_APPLE:1-2", "EXPERIENCE_BOTTLE:8-16"]
+    COMMANDS: []

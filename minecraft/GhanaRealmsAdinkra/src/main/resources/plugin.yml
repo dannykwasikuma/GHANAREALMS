@@ -1,0 +1,13 @@
+name: GhanaRealmsAdinkra
+version: '${project.version}'
+main: com.ghanarealms.adinkra.GhanaRealmsAdinkra
+api-version: '1.21'
+author: GhanaRealms
+description: Adinkra chat titles, Ghanaian welcome messages, and Twi command aliases
+commands:
+  adinkra:
+    description: List/select your Adinkra titles (admin - grant/revoke)
+    usage: /adinkra [list|select <id>|clear|grant <player> <id>|revoke <player> <id>]
+permissions:
+  ghanarealmsadinkra.use: {description: Use titles, default: true}
+  ghanarealmsadinkra.admin: {description: Grant/revoke titles, default: op}

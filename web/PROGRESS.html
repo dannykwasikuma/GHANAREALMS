@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GhanaRealms Store - Progress</title>
+<style>
+  :root { --red:#ce1126; --gold:#fcd116; --green:#006b3f; --bg:#0c0f0b; --card:#14180f; --border:#26301f; --fg:#f5f1e8; }
+  body { background:var(--bg); color:var(--fg); font-family:-apple-system,Segoe UI,Arial,sans-serif; margin:0; padding:0; }
+  .kente { height:6px; background:repeating-linear-gradient(90deg,var(--red) 0 24px,var(--gold) 24px 48px,var(--green) 48px 72px,#000 72px 96px); }
+  .wrap { max-width:900px; margin:0 auto; padding:40px 20px; }
+  h1 { font-size:2.2em; margin-bottom:0; }
+  h1 span.g { color:var(--gold); } h1 span.r { color:var(--red); }
+  .sub { color:#999; margin-top:4px; }
+  .honesty { background:var(--card); border:1px solid var(--border); border-left:4px solid var(--gold); padding:16px 20px; border-radius:8px; margin:24px 0; font-size:0.95em; }
+  table { width:100%; border-collapse:collapse; margin:16px 0; font-size:0.9em; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+  th { color:#999; font-weight:600; }
+  .pass { color:var(--green); font-weight:600; }
+  .not-tested { color:#999; }
+  .blocked { color:var(--red); font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; margin:16px 0; }
+  a { color:var(--gold); }
+  code { background:#1a1f14; padding:2px 6px; border-radius:4px; font-size:0.9em; }
+</style>
+</head>
+<body>
+<div class="kente"></div>
+<div class="wrap">
+  <h1><span class="r">Ghana</span><span class="g">Realms</span> Store</h1>
+  <p class="sub">Development progress - generated alongside the actual codebase, not a mockup.</p>
+
+  <div class="honesty">
+    <strong>What this page is and isn't:</strong> This is a static status
+    summary, not a live running instance of the app - I have no way to
+    expose a persistently-running server with a public URL from the
+    environment this was built in. Every claim below was actually verified
+    (see <a href="STATUS.md">STATUS.md</a> for the full test log) by
+    running the real app against a real local PostgreSQL 16 instance -
+    the build, the database schema, the checkout flow, the webhook
+    signature/idempotency logic, and the admin auth flow were all
+    genuinely executed, not just written and assumed to work. Run
+    <code>npm run dev</code> yourself to see the real, same pages this
+    describes.
+  </div>
+
+  <div class="card">
+    <h2>Build &amp; test results</h2>
+    <table>
+      <tr><th>Check</th><th>Result</th></tr>
+      <tr><td>Production build (<code>npm run build</code>)</td><td class="pass">PASS</td></tr>
+      <tr><td>TypeScript compilation</td><td class="pass">PASS</td></tr>
+      <tr><td>Database schema against live PostgreSQL 16</td><td class="pass">PASS</td></tr>
+      <tr><td>Duplicate-webhook idempotency (real duplicate insert test)</td><td class="pass">PASS</td></tr>
+      <tr><td>Homepage / Store / Product pages (live DB queries)</td><td class="pass">PASS</td></tr>
+      <tr><td>Checkout → order/payment creation</td><td class="pass">PASS</td></tr>
+      <tr><td>Webhook signature verification (valid + invalid)</td><td class="pass">PASS</td></tr>
+      <tr><td>Admin login → session → dashboard (full flow)</td><td class="pass">PASS</td></tr>
+      <tr><td>Real Paystack transaction (test or live)</td><td class="not-tested">NOT TESTED - api.paystack.co unreachable from build sandbox</td></tr>
+      <tr><td>Real Mojang username lookup</td><td class="not-tested">NOT TESTED - api.mojang.com unreachable from build sandbox</td></tr>
+      <tr><td>Minecraft plugin compilation</td><td class="not-tested">NOT TESTED - no Maven Central access from build sandbox</td></tr>
+      <tr><td>Deployment</td><td class="blocked">BLOCKED - no VPS/domain provided yet</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Pages built</h2>
+    <p>/ &middot; /store &middot; /store/[slug] &middot; /checkout &middot; /payment/callback &middot; /lookup &middot; /terms &middot; /privacy &middot; /refund-policy &middot; /admin/login &middot; /admin</p>
+  </div>
+
+  <div class="card">
+    <h2>A real bug found and fixed during testing</h2>
+    <p><code>lib/paystack.ts</code> crashed with an uncaught exception if
+    Paystack's API (or anything in front of it) returned a non-JSON
+    response. Found by actually running the checkout flow against this
+    sandbox's restricted network, not by reading the code - fixed to fail
+    gracefully with a proper error response instead. See STATUS.md's
+    Known Issues for what's still open.</p>
+  </div>
+
+  <p style="color:#666; margin-top:40px;">See <a href="STATUS.md">STATUS.md</a> for the complete, itemized report.</p>
+</div>
+</body>
+</html>

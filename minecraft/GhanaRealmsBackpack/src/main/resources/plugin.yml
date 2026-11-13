@@ -1,0 +1,14 @@
+name: GhanaRealmsBackpack
+version: '${project.version}'
+main: com.ghanarealms.backpack.GhanaRealmsBackpack
+api-version: '1.21'
+author: GhanaRealms
+description: Per-player persistent backpack, size upgraded by store purchases
+commands:
+  backpack:
+    description: Open your backpack (admins - /backpack setrows <player> <1-6>)
+    usage: /backpack [setrows <player> <rows>]
+    aliases: [bp]
+permissions:
+  ghanarealmsbackpack.use: {description: Open backpack, default: true}
+  ghanarealmsbackpack.admin: {description: Set backpack size, default: op}

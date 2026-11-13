@@ -12,8 +12,15 @@ commands:
     usage: /shophelp
     permission: ghanarealmsshops.use
 
+  servershop:
+    description: Create and manage walk-in server shop chests
+    usage: /servershop <create|remove|list|open|reload>
+    permission: ghanarealmsshops.admin
+
 permissions:
   ghanarealmsshops.use:
     default: true
   ghanarealmsshops.create:
     default: true
+  ghanarealmsshops.admin:
+    default: op

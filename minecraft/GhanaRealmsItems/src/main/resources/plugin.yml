@@ -1,0 +1,19 @@
+name: GhanaRealmsItems
+version: '${project.version}'
+main: com.ghanarealms.items.GhanaRealmsItems
+api-version: '1.21'
+author: GhanaRealms
+description: Custom item delivery (/gritem) and the synced in-game coin shop (/gshop)
+softdepend: [Vault]
+commands:
+  gritem:
+    description: "Give an item from a catalogue spec (console/admin; used by store delivery)"
+    usage: /gritem give <player> <MATERIAL> <amount> [name=..] [ench=A:1,B:2] [potion=TYPE] [lore=..]
+    permission: ghanarealmsitems.admin
+  gshop:
+    description: Open the GhanaRealms coin shop
+    usage: /gshop
+    permission: ghanarealmsitems.shop
+permissions:
+  ghanarealmsitems.admin: {description: Give items, default: op}
+  ghanarealmsitems.shop: {description: Use /gshop, default: true}
